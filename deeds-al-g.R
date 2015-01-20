@@ -64,7 +64,7 @@ ReadDeedsFile <- function(control, num) {
         ,nrows=if(control$testing) 1000 else -1
         )
     
-    sprintf('Read %d observations\n from file %s\n in zip %s\n', nrow(df), filename, path)
+    Printf('Read %d observations\n from file %s\n in zip %s\n', nrow(df), filename, path)
     
     # keep just APN and info unique to current sale
     # (so don't keep info that is in the taxroll file)

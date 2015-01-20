@@ -7,6 +7,7 @@
 source('Directory.R')
 source('InitializeR.R')
 source('LUSEI.R')
+source('Printf.R')
 source('ReadRawParcels.R')
 
 # set the control variables
@@ -236,8 +237,8 @@ Main <- function(control) {
     nrow.all <- nrow(all)
     nrow.sfr <- nrow(parcels.sfr)
     
-    sprintf('Read %d deeds\n', nrow.all)
-    sprintf('Retained %d as single-family residential\n', nrow.sfr)
+    Printf('Read %d deeds\n', nrow.all)
+    Printf('Retained %d as single-family residential\n', nrow.sfr)
     str(parcels.sfr)
     
     # Write RData

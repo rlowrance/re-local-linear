@@ -26,7 +26,7 @@ ReadRawParcels <- function(nrows, path.to.input.directory, verbose = FALSE) {
                          )
 
         if (verbose) {
-            sprintf('Read %d observations\n from file %s\n in zip %s\n', nrow(df), filename, path)
+            Printf('Read %d observations\n from file %s\n in zip %s\n', nrow(df), filename, path)
         }
 
         # track original source
