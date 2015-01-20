@@ -6,6 +6,7 @@
 source('DEEDC.R')
 source('Directory.R')
 source('InitializeR.R')
+source('Printf.R')
 source('PRICATCODE.R')
 
 require(methods)  # make hasArg() function available
