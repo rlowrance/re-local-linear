@@ -44,9 +44,9 @@ $(WORKING)/parcels-sfr.RData: $(INPUT_TAXROLLS) parcels-sfr.R
 	Rscript parcels-sfr.R
 
 # source file dependencies
-census.R:             Directory.R Initialize.R
+census.R:             Directory.R InitializeR.R
 deeds-al-g.R: DEEDC.R Directory.R InitializeR.R Printf.R PRICATCODE.R
-parcels-coded.R:      Directory.R InitializeR.R LUSEI.R PROPN.N ReadRawParcels.R
+parcels-coded.R:      Directory.R InitializeR.R LUSEI.R PROPN.R ReadRawParcels.R
 parcels-derived-features.R: \
 	Clock.R Directory.R InitializeR.R LUSEI.R Printf.R PROPN.R ReadParcelsCoded.R ZipN.R
 parcels-sfr.R:        Directory.R InitializeR.R LUSEI.R Printf.R ReadRawParcels.R
