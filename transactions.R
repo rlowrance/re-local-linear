@@ -23,6 +23,7 @@
 # formatted or unformatted APN.
 
 source('Directory.R')
+source('InitializeR.R')
 
 source('BestApns.R')
 source('ReadCensus.R')
