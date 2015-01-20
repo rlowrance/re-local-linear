@@ -2,9 +2,12 @@
 # Create files OUTPUT/parcels-derived-features.RData
 
 source('Directory.R')
-source('Libraries.R')
+source('InitializeR.R')
+source('Methods.R')
 
+source('Clock.R')
 source('LUSEI.R')
+source('Printf.R')
 source('PROPN.R')
 source('ReadParcelsCoded.R')
 source('ZipN.R')
@@ -57,7 +60,7 @@ FeaturesCensusTract <- function(control, parcels.coded) {
                          ,has.school = sapply(uct, HasSchool)
                          ,census.tract = uct
                          )
-    elapsed.cpu <- clock$Cpu()
+    elapsed.cpu <- Cpu(clock)
     Printf('census tract features elapsed cpu %f seconds\n', elapsed.cpu)
     print(summary(result))
     result
@@ -94,7 +97,7 @@ FeaturesZip5 <- function(control, parcels.coded) {
                          ,has.school = sapply(uz, HasSchool)
                          ,zip5 = uz
                          )
-    elapsed.cpu <- clock$Cpu()
+    elapsed.cpu <- Cpu(clock)
     Printf('zip5 features elapsed cpu %f seconds\n', elapsed.cpu)
     print(summary(result))
     result
@@ -130,7 +133,7 @@ FeaturesZip9 <- function(control, parcels.coded) {
                          ,has.school = sapply(uz, HasSchool)
                          ,zip9 = uz
                          )
-    elapsed.cpu <- clock$Cpu()
+    elapsed.cpu <- Cpu(clock)
     Printf('zip9 features elapsed cpu %f seconds\n', elapsed.cpu)
     print(summary(result))
     result
