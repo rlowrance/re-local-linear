@@ -2,10 +2,10 @@
 # Create output file WORKING/transactions-subset1.RData
 
 
-source('DirectoryLog.R')
-source('DirectoryWorking.R')
-source('Libraries.R')
+source('Directory.R')
+source('InitializeR.R')
 
+source('Printf.R')
 source('ReadTransactions.R')
 
 source('DEEDC.R')
@@ -18,11 +18,11 @@ Control <- function() {
     # set control variables
     me <- 'transactions-subset1'
 
-    log <- DirectoryLog()
-    working <- DirectoryWorking()
+    log <- Directory('log')
+    working <- Directory('working')
 
     control <- list( path.out.log = paste0(log, me, '.log')
-                    ,path.out.rdata = paste0(working, 'transactions-subset1.RData')
+                    ,path.out.rdata = paste0(working, me, '.RData')
                     ,path.in.transactions = paste0(working, 'transactions.RData')
                     ,testing = FALSE
                     # used in selection of OK transactions
