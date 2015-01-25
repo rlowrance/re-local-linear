@@ -49,7 +49,7 @@ $(WORKING)/parcels-derived-features.RData: $(INPUT_TAXROLLS) parcels-derived-fea
 $(WORKING)/parcels-sfr.RData: $(INPUT_TAXROLLS) parcels-sfr.R
 	Rscript parcels-sfr.R
 
-$(WORKING)/transactions.RData: $(INPUT_TAXROLLS) transactions.R
+$(WORKING)/transactions%RData $(WORKING)/transactions%csv: $(INPUT_TAXROLLS) transactions.R
 	Rscript transactions.R
 
 $(WORKING)/transactions-subset1.RData: $(INPUT_TAXROLLS) transactions-subset1.R

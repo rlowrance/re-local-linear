@@ -1,5 +1,8 @@
 # transactions.R
-# Create OUTPUT/transactions.Rdata file containing all transactions for
+# Create files
+#    OUTPUT/transactions.Rdata
+#    OUTPUT/transactions.csv
+# containing all transactions for
 # arms-length grant deeds for single-family-residential parcels.
 
 # Join these dataframes and files
@@ -40,7 +43,8 @@ Control <- function() {
     working <- Directory('working')
 
     control <- list( path.out.log = paste0(log, me, '.log')
-                    ,path.out.transactions = paste0(working, 'transactions.RData')
+                    ,path.out.transactions.rdata = paste0(working, 'transactions.RData')
+                    ,path.out.transactions.csv = paste0(working, 'transactions.csv')
                     ,path.in.census = paste0(working, 'census.RData')
                     ,path.in.deeds.al.g = paste0(working, 'deeds-al-g.RData')
                     ,path.in.geocoding = paste0(input, 'geocoding.tsv')
@@ -299,7 +303,11 @@ WriteTransactions <- function(control, transactions, info) {
     transactions$APN.UNFORMATTED.parcels <- NULL
     transactions$APN.FORMATTED.parcels <- NULL
 
-    save(control, transactions, info, file = control$path.out.transactions)
+    write.csv(transactions, control$path.out.transactions.csv)
+
+    save(control, transactions, info, file = control$path.out.transactions.rdata)
+
+
 }
 
 
