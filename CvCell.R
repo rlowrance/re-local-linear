@@ -1,10 +1,11 @@
 # CvCell S3 class
 # constructor: CvCell(model, scope, response, predictors, query, when, days, ...)
 # methods:
-#  as.list.CvCell(x) --> list(scope=<value>, response=<value>, ...)
-#  AsCharacter.CvCell(x) --> string SCOPE_RESPONSE_PREDICTORS_...
-#  Path.CvCell(x) --> string with path to cell file in the directory
-#  Command.CvCell(x) --> string with command to create the cell
+#  as.list.CvCell(x)        --> list(scope=<value>, response=<value>, ...)
+#  AsCharacter.CvCell(x)    --> string SCOPE_RESPONSE_PREDICTORS_...
+#  Path.CvCell(x)           --> string with path to cell file in the directory
+#  Command.CvCell(x)        --> string with command to create the cell
+#  PredictorNames.CvCell(x) --> vector of string, each a predictor name
 
 source('Directory.R')
 source('Methods.R')
@@ -19,18 +20,23 @@ IsResponse <- function(s) {
     (s == 'logprice') || (s == 'price')
 }
 
+predictor.names <-
+    # vector of all predictor names
+    c( 'always',    'alwaysNoAssessment',    'alwaysNoCensus'
+      ,'alwaysLog', 'alwaysNoAssessmentLog', 'alwaysNoCensusLog'
+      ,'best01', 'best02', 'best03', 'best04', 'best05', 'best06'
+      ,'best07', 'best08', 'best09', 'best10', 'best11', 'best12'
+      ,'best13', 'best14', 'best15', 'best16', 'best17', 'best18'
+      ,'best19', 'best20', 'best21', 'best22', 'best23', 'best24'
+      ,'pca01',  'pca02',  'pca03',  'pca04'
+      ,'best15census', 'best15city', 'best15zip'
+      )
+
+
 IsPredictors <- function(s) {
     # names of predictor sets
     # the names of the predictors are in file WORKING/predictors-PREDICTOR_SET_NAME.csv
-    s %in% c( 'always',    'alwaysNoAssessment',    'alwaysNoCensus'
-             ,'alwaysLog', 'alwaysNoAssessmentLog', 'alwaysNoCensusLog'
-             ,'best01', 'best02', 'best03', 'best04', 'best05', 'best06'
-             ,'best07', 'best08', 'best09', 'best10', 'best11', 'best12'
-             ,'best13', 'best14', 'best15', 'best16', 'best17', 'best18'
-             ,'best19', 'best20', 'best21', 'best22', 'best23', 'best24'
-             ,'pca01',  'pca02',  'pca03',  'pca04'
-             ,'best15census', 'best15city', 'best15zip'
-             )
+    s %in% predictor.names
 }
 
 IsQuery <- function(s) {
@@ -138,6 +144,10 @@ Path.CvCell <- function(x) {
            ,AsCharacter(x)
            ,'.RData'
            )
+}
+
+PredictorNames.CvCell <- function(x) {
+    predictor.names
 }
 
 # UNIT TESTS
