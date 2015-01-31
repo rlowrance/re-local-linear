@@ -1,6 +1,8 @@
 # disable built-in rules
 .SUFFIXES:
 
+PYTHON = ~/anaconda/bin/python
+
 INPUT = ../data/input
 WORKING = ../data/working
 
@@ -30,7 +32,7 @@ ALL += $(WORKING)/parcels-coded.RData
 ALL += $(WORKING)/parcels-derived-features.RData
 ALL += $(WORKING)/parcels-sfr.RData
 ALL += $(WORKING)/transactions.RData
-ALL += $(WORKING)/transactions-subset1.RData
+ALL += $(WORKING)/transactions-subset2.pickle
 
 all: $(ALL)
 
@@ -49,14 +51,19 @@ $(WORKING)/parcels-derived-features.RData: $(INPUT_TAXROLLS) parcels-derived-fea
 $(WORKING)/parcels-sfr.RData: $(INPUT_TAXROLLS) parcels-sfr.R
 	Rscript parcels-sfr.R
 
-$(WORKING)/transactions%RData $(WORKING)/transactions%csv: $(INPUT_TAXROLLS) transactions.R
+$(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
+	$(WORKING)/census.RData \
+	$(WORKING)/deed-al-g.RData \
+	$(INPUT)/geocoding.tsv \
+	$(WORKING)/parcels-derived-features.RData \
+	$(WORKING)/parcels-sfr.RData \
+	transactions.R
 	Rscript transactions.R
 
-$(WORKING)/transactions-subset1.RData: $(INPUT_TAXROLLS) transactions-subset1.R
-	Rscript transactions-subset1.R
+$(WORKING)/transactions-subset2%csv $(WORKING)/transactions-subset2%pickle: \
+	$(WORKING)/transactions.csv transactions-subset2.py
+	$(PYTHON) transactions-subset2.py
 
-$(WORKING)/transactions-subset1-train.RData: $(INPUT_TAXROLLS) transactions-subset1-train.R
-	Rscript transactions-subset1-train.R
 
 # source file dependencies
 census.R: \
@@ -71,7 +78,5 @@ parcels-sfr.R: \
 	Directory.R InitializeR.R LUSEI.R Printf.R ReadRawParcels.R
 transactions.R: \
 	Directory.R InitializeR.R BestApns.R ReadCensus.R ReadDeedsAlG.R ReadParcelsSfr.R ZipN.R
-transactions-subset1.R: \
-	Directory.R InitializeR.R Printf.R ReadTransactions.R DEEDC.R SCODE.R TRNTP.R
-transactions-subset1-train.R: \
-	Directory.R InitializeR.R Printf.R ReadTransactionsSubset1.R SplitDate.R
+transactions-subset2.py: \
+	directory.py features.py year_month_day.py Logger.py SCODE.py TRNTP.py
