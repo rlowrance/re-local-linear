@@ -12,21 +12,24 @@ def features(feature_set_name):
 
     # these dictionaries define the features in each feature set and
     # whether and how to convert the feature into the log domain
-    id_features = {'recordingDate': 'none',
-                   'saleDate': 'none',
-                   'apn': 'none',
-                   'census.tract': 'none',
+
+    id_features = {'RECORDING.DATE': 'none',
+                   'SALE.DATE': 'none',
+                   'sale.year': 'none',
+                   'sale.month': 'none',
+                   'sale.day': 'none',
+                   'apn.recoded': 'none',
+                   'CENSUS.TRACT': 'none',
                    'zip5': 'none',
-                   'property.city': 'none'}
+                   'PROPERTY.CITY': 'none'}
 
-    price_features = {'price': 'none',
-                      'price.log': 'none'}
+    price_features = {'SALE.AMOUNT': 'none'}
 
-    predictors_assessment = {'improvement.value': 'log',
-                             'land.value': 'log',
+    predictors_assessment = {'IMPROVEMENT.VALUE.CALCULATED': 'log',
+                             'LAND.VALUE.CALCULATED': 'log',
                              'fraction.improvement.value': 'none'}
 
-    predictors_census = {'avg.commute.time': 'none',
+    predictors_census = {'avg.commute': 'none',
                          'census.tract.has.industry': 'none',
                          'census.tract.has.park': 'none',
                          'census.tract.has.retail': 'none',
@@ -34,24 +37,23 @@ def features(feature_set_name):
                          'fraction.owner.occupied': 'none',
                          'median.household.income': 'none'}
 
-    predictors_taxroll = {'effective.year.built': 'none',
-                          'factor.has.pool': 'none',
-                          'factor.is.new.construction': 'none',
-                          'year.built': 'none',
+    predictors_taxroll = {'EFFECTIVE.YEAR.BUILT': 'none',
+                          'has.pool': 'none',
+                          'is.new.construction': 'none',
+                          'YEAR.BUILT': 'none',
                           'zip5.has.industry': 'none',
                           'zip5.has.park': 'none',
                           'zip5.has.retail': 'none',
                           'zip5.has.school': 'none',
-                          'land.square.footage': 'log',
-                          'living.area': 'log',
-                          'land.value': 'log',
-                          'basement.square.feet': 'log1p',
-                          'bathrooms': 'log1p',
-                          'bedrooms': 'log1p',
-                          'fireplace.number': 'log1p',
-                          'parking.spaces': 'log1p',
-                          'stories.number': 'log1p',
-                          'total.rooms': 'log1p'}
+                          'LAND.SQUARE.FOOTAGE': 'log',
+                          'LIVING.SQUARE.FEET': 'log',
+                          'BASEMENT.SQUARE.FEET': 'log1p',
+                          'TOTAL.BATHS.CALCULATED': 'log1p',
+                          'BEDROOMS': 'log1p',
+                          'FIREPLACE.NUMBER': 'log1p',
+                          'PARKING.SPACES': 'log1p',
+                          'STORIES.NUMBER': 'log1p',
+                          'TOTAL.ROOMS': 'log1p'}
 
     def transform(predictors, use_log):
         '''Return dictionary specifying how to convert to log domains.'''
@@ -148,7 +150,7 @@ if __name__ == '__main__':
     def get(feature_set_name):
         ''' get features and possibly print them.'''
         f = features(feature_set_name)
-        if True:
+        if False:
             print(feature_set_name)
             print(f)
         return f
@@ -159,11 +161,11 @@ if __name__ == '__main__':
 
         def test_id(self):
             f = get('id')
-            self.assertEqual(len(f), 6)
+            self.assertEqual(len(f), 9)
 
         def test_prices(self):
             f = get('prices')
-            self.assertEqual(len(f), 2)
+            self.assertEqual(len(f), 1)
 
         def test_pca02(self):
             f = get('pca02')
@@ -184,18 +186,18 @@ if __name__ == '__main__':
 
         def test_ct(self):
             f = get('ct')
-            self.assertEqual(len(f), 25)
+            self.assertEqual(len(f), 24)
 
         def test_ctLog(self):
             f = get('ctLog')
-            self.assertEqual(len(f), 25)
+            self.assertEqual(len(f), 24)
 
         def test_t(self):
             f = get('t')
-            self.assertEqual(len(f), 18)
+            self.assertEqual(len(f), 17)
 
         def test_tLog(self):
             f = get('tLog')
-            self.assertEqual(len(f), 18)
+            self.assertEqual(len(f), 17)
 
     unittest.main()
