@@ -1,5 +1,15 @@
 def directory(name):
-    '''Return path to specified directory in file system.'''
+    '''Return path to specified directory in file system.
+
+    Parameters
+    ----------
+    name : string
+      name of the directory, one of cells, input, log, working
+
+    Returns
+    -------
+    string: path to the named directory, ending with a "/"
+    '''
 
     root = '../'
     if name == 'cells':
