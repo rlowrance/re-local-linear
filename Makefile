@@ -26,13 +26,15 @@ INPUT_TAXROLLS += $(INPUT)/corelogic-taxrolls-090402_05/CAC06037F8.zip
 
 INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 
-ALL += $(WORKING)/census.RData
-ALL += $(WORKING)/deeds-al-g.RData
-ALL += $(WORKING)/parcels-coded.RData
-ALL += $(WORKING)/parcels-derived-features.RData
-ALL += $(WORKING)/parcels-sfr.RData
-ALL += $(WORKING)/transactions.RData
+#ALL += $(WORKING)/census.RData
+#ALL += $(WORKING)/deeds-al-g.RData
+#ALL += $(WORKING)/parcels-coded.RData
+#ALL += $(WORKING)/parcels-derived-features.RData
+#ALL += $(WORKING)/parcels-sfr.RData
+#ALL += $(WORKING)/transactions.RData
 ALL += $(WORKING)/transactions-subset2.pickle
+ALL += $(WORKING)/transactions-subset2-test.pickle
+ALL += $(WORKING)/transactions-subset2-train.pickle
 
 all: $(ALL)
 
@@ -60,13 +62,16 @@ $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
 	transactions.R
 	Rscript transactions.R
 
-$(WORKING)/transactions-subset2%csv $(WORKING)/transactions-subset2%pickle: \
-	$(WORKING)/transactions.csv transactions-subset2.py
-	$(PYTHON) transactions-subset2.py
+$(WORKING)/transactions-subset2.pickle \
+$(WORKING)/transactions-subset2.csv \
+: $(WORKING)/transactions.csv transactions-subset2.py
+	$(PYTHON) transations-subset2.py
 
-$(WORKING)/transactions-subset2-train%pickle $(WORKING)/transactions-subset2-test%pickle: \
-	$(WORKING)/transactions-subset2.pickle
+$(WORKING)/transactions-subset2-test%pickle \
+$(WORKING)/transactions-subset2-train%pickle \
+: $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
 	$(PYTHON) transactions-subset2-test.py
+
 
 
 # source file dependencies
