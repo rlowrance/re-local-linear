@@ -24,8 +24,9 @@ class Control(object):
         working = directory('working')
         log = directory('log')
 
-        self.path_out_test = working + me + '-test.pickle'
-        self.path_out_train = working + me + '-train.pickle'
+        base = 'transactions-subset2'
+        self.path_out_test = working + base + '-test.pickle'
+        self.path_out_train = working + base + '-train.pickle'
         self.path_out_log = log + me + '.log'
         self.path_in_data = working + 'transactions-subset2.pickle'
 
