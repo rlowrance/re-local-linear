@@ -64,6 +64,10 @@ $(WORKING)/transactions-subset2%csv $(WORKING)/transactions-subset2%pickle: \
 	$(WORKING)/transactions.csv transactions-subset2.py
 	$(PYTHON) transactions-subset2.py
 
+$(WORKING)/transactions-subset2-train%pickle $(WORKING)/transactions-subset2-test%pickle: \
+	$(WORKING)/transactions-subset2.pickle
+	$(PYTHON) transactions-subset2-test.py
+
 
 # source file dependencies
 census.R: \
@@ -80,3 +84,5 @@ transactions.R: \
 	Directory.R InitializeR.R BestApns.R ReadCensus.R ReadDeedsAlG.R ReadParcelsSfr.R ZipN.R
 transactions-subset2.py: \
 	directory.py features.py year_month_day.py Logger.py SCODE.py TRNTP.py
+transactions-subset2-test.py: \
+	directory.py Logger.py
