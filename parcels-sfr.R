@@ -1,6 +1,8 @@
 # parcels-sfr.Rmd
-# main program to create file OUTPUT/parcels-sfr.RData, holding 
-# all features of single-family residential parcles
+# main program to create files
+# WORKING/parcels-sfr.RData: all features of single-family residential parcels
+# WORKING/parcels-sfr-counts.csv: record counts
+
 # File layout is in 2580...
 # NOTE: the features of parcels are in the taxroll files
 
@@ -22,6 +24,7 @@ Control <- function() {
     control <- list(
          path.out.log = paste0(log, me, '.log')
         ,path.out.deeds = paste0(working, me, '.RData')
+        ,path.out.counts = paste0(working, me, '-counts.csv')
         ,path.to.input.directory = input
         ,testing = FALSE
         )
@@ -247,6 +250,11 @@ Main <- function(control) {
                  ,nrow.sfr = nrow.sfr
     )
     save(parcels.sfr, info, control, file = control$path.out.deeds)
+    counts <- data.frame( stringsAsFactors = FALSE
+                        ,file_name = c('raw', 'sfr')
+                        ,record_count = c(nrow.all, nrow.sfr)
+                        )
+    write.csv(counts, file = control$path.out.counts)
 
 
     # write control variables
