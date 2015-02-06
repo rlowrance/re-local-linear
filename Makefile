@@ -35,9 +35,29 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 ALL += $(WORKING)/transactions-subset2.pickle
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
+ALL += $(WORKING)/chart-01.pdf
+ALL += $(WORKING)/record-counts.tex
+
+
 
 all: $(ALL)
 
+# CHARTS
+$(WORKING)/chart-01.pdf: $(WORKING)/chart-01-data.pickle chart-01.py
+	$(PYTHON) chart-01.py
+
+$(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01-data.py
+	$(PYTHON) chart-01-data.py
+
+# GENERATED TEX FILES
+
+$(WORKING)/record-counts.tex: \
+	$(WORKING)/parcels-sfr-counts.csv \
+	record-counts.py
+	$(PYTHON) record-counts.py
+
+
+# DATA
 $(WORKING)/census.RData: $(INPUT_CENSUS) census.R
 	Rscript census.R
 
@@ -50,7 +70,9 @@ $(WORKING)/parcels-coded.RData: $(INPUT_TAXROLLS) parcels-coded.R
 $(WORKING)/parcels-derived-features.RData: $(INPUT_TAXROLLS) parcels-derived-features.R
 	RScript parcels-derived-features.R
 
-$(WORKING)/parcels-sfr.RData: $(INPUT_TAXROLLS) parcels-sfr.R
+$(WORKING)/parcels-sfr%RData \
+$(WORKING)/parcels-sfr-counts%csv \
+: $(INPUT_TAXROLLS) parcels-sfr.R
 	Rscript parcels-sfr.R
 
 $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
@@ -72,9 +94,11 @@ $(WORKING)/transactions-subset2-train%pickle \
 : $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
 	$(PYTHON) transactions-subset2-test.py
 
+# source file dependencies charts
+chart-01.py:      directory.py Logger.py
+chart-01-data.py: directory.py Logger.py
 
-
-# source file dependencies
+# source file dependencies basic data
 census.R: \
 	Directory.R InitializeR.R
 deeds-al-g.R: \
