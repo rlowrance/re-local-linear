@@ -7,7 +7,6 @@
 # import built-ins and libraries
 import numpy as np
 import pandas as pd
-import pdb
 import sys
 import cPickle as pickle
 
@@ -56,7 +55,6 @@ def summarize(df):
 
 def main():
 
-    pdb.set_trace()
     control = Control()
     sys.stdout = Logger(logfile_path=control.path_out_log)
 
