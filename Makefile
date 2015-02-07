@@ -32,13 +32,11 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 #ALL += $(WORKING)/parcels-derived-features.RData
 #ALL += $(WORKING)/parcels-sfr.RData
 #ALL += $(WORKING)/transactions.RData
-ALL += $(WORKING)/transactions-subset2.pickle
+#ALL += $(WORKING)/transactions-subset2.pickle
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/record-counts.tex
-
-
 
 all: $(ALL)
 
@@ -53,6 +51,7 @@ $(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01
 
 $(WORKING)/record-counts.tex: \
 	$(WORKING)/parcels-sfr-counts.csv \
+	$(WORKING)/deeds-al-g-counts.csv \
 	record-counts.py
 	$(PYTHON) record-counts.py
 
@@ -61,7 +60,9 @@ $(WORKING)/record-counts.tex: \
 $(WORKING)/census.RData: $(INPUT_CENSUS) census.R
 	Rscript census.R
 
-$(WORKING)/deeds-al-g.RData: $(INPUT_DEEDS) deeds-al-g.R
+$(WORKING)/deeds-al-g%RData \
+$(WORKING)/deeds-al-g-counts%csv \
+: $(INPUT_DEEDS) deeds-al-g.R
 	Rscript deeds-al-g.R
 
 $(WORKING)/parcels-coded.RData: $(INPUT_TAXROLLS) parcels-coded.R

@@ -1,5 +1,8 @@
 # deeds-al-g.R
-# main program to create file OUTPUT/deeds-al-g.RData, hold many features of arms-length grant deeds.
+# main program to create files
+# WORKING/deeds-al-g.RData, hold many features of arms-length grant deeds.
+# WORKING/deeds-al-g-counts.csv: record counts
+
 # Record layout for the input is in 1080_Record_layout.csv
 # Save just the deeds info, not the info that is also in the payroll file (except for the APN)
 
@@ -35,6 +38,7 @@ Control <- function() {
          path.in.deeds = list(Deeds(1), Deeds(2), Deeds(3), Deeds(4), Deeds(5), Deeds(6), Deeds(7), Deeds(8))
         ,path.out.log = paste0(log, me, '.log')
         ,path.out.deeds = paste0(working, me, '.RData')
+        ,path.out.counts = paste0(working, me, '-counts.csv')
         ,testing = FALSE
         )
     control
@@ -160,6 +164,13 @@ Main <- function(control) {
                   ,num.is.arms.length.and.grant.deed = sum(is.keeper)
                   )
     str(count)
+
+    # write counts CSV
+    df <- data.frame( stringsAsFactors = FALSE
+                     ,file_name = c('raw', 'armslengthandgrant')
+                     ,record_count = c(nrow(all), nrow(deeds.al.grant))
+                     )
+    write.csv(df, file = control$path.out.counts)
 
     # Write RData
     save(deeds.al.grant, count, control, file = control$path.out.deeds)#

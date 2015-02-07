@@ -19,6 +19,8 @@ class Control(object):
         self.path_out = working + me + '.tex'
         self.path_out_log = log + me + '.log'
         self.path_in_parcels = working + 'parcels-sfr-counts.csv'
+        self.path_in_deeds = working + 'deeds-al-g-counts.csv'
+        self.path_in_transactions = working + 'transactions-counts.csv'
 
         self.testing = False
 
@@ -32,17 +34,23 @@ def main():
     for k, v in control.__dict__.iteritems():
         print 'control', k, v
 
+    # build the counts dictionary from the content of all of the input files
+
     counts = {}
 
-    def save_row(kind, row):
-        print 'save_row', kind, row
-        counts[(kind, row.file_name)] = row.record_count
+    def process_input_file(tag, path):
+        def save_row(kind, row):
+            print 'save_row', kind, row
+            counts[(kind, row.file_name)] = row.record_count
 
-    # parcels
+        df = pd.io.parsers.read_csv(path)
+        df.apply(lambda row: save_row(tag, row),
+                 axis=1)
+
+    process_input_file('parcels', control.path_in_parcels)
+    process_input_file('deeds', control.path_in_deeds)
+    process_input_file('transactions', control.path_in_transactions)
     import pdb
-    parcels = pd.io.parsers.read_csv(control.path_in_parcels)
-    parcels.apply(lambda row: save_row('parcels', row),
-                  axis=1)
     pdb.set_trace()
 
     # create the commands
