@@ -1,7 +1,8 @@
 # transactions.R
 # Create files
-#    OUTPUT/transactions.Rdata
-#    OUTPUT/transactions.csv
+#    WORKING/transactions.Rdata
+#    WORKING/transactions.csv
+#    WORKING/transactions-counts.csv
 # containing all transactions for
 # arms-length grant deeds for single-family-residential parcels.
 
@@ -45,6 +46,7 @@ Control <- function() {
     control <- list( path.out.log = paste0(log, me, '.log')
                     ,path.out.transactions.rdata = paste0(working, 'transactions.RData')
                     ,path.out.transactions.csv = paste0(working, 'transactions.csv')
+                    ,path.out.counts = paste0(working, 'transactions-counts.csv')
                     ,path.in.census = paste0(working, 'census.RData')
                     ,path.in.deeds.al.g = paste0(working, 'deeds-al-g.RData')
                     ,path.in.geocoding = paste0(input, 'geocoding.tsv')
@@ -404,6 +406,14 @@ info <- list( nrow.deeds.al.g = nrow(deeds.al.g)
 )
 cat('writing transactions')
 WriteTransactions(control, transactions, info)
+
+# write transaction counts
+counts <- data.frame( stringsAsFractions = FALSE
+                     ,file_name = 'all'
+                     ,record_count = nrow(transactions))
+write.csv(counts, file = control$path.out.counts)
+
+# write the controls
 str(control)
 if (control$testing)
     cat('DISCARD OUTPUT: TESTING\n')
