@@ -21,6 +21,8 @@ class Control(object):
         self.path_in_parcels = working + 'parcels-sfr-counts.csv'
         self.path_in_deeds = working + 'deeds-al-g-counts.csv'
         self.path_in_transactions = working + 'transactions-counts.csv'
+        self.path_in_transactions_subset2 = \
+            working + 'transactions-subset2-counts.csv'
 
         self.testing = False
 
@@ -50,10 +52,12 @@ def main():
     process_input_file('parcels', control.path_in_parcels)
     process_input_file('deeds', control.path_in_deeds)
     process_input_file('transactions', control.path_in_transactions)
+    process_input_file('subsettwo', control.path_in_transactions_subset2)
     import pdb
     pdb.set_trace()
 
     # create the commands
+    # NOTE: doesn't depend on the input files
 
     def declare(command_name, command_text):
         return r'\DeclareRobustCommand{\%s}{%s}' % (command_name, command_text)

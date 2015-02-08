@@ -1,5 +1,6 @@
-# create file
+# create files
 # WORKING/transactions-subset2.pickle
+# WORKING/transactions-subset2-counts.csv
 
 # import built-ins and libraries
 import numpy as np
@@ -23,6 +24,7 @@ class Control(object):
         log = directory('log')
 
         self.path_out_pickle = working + me + '.pickle'
+        self.path_out_counts = working + me + '-counts.csv'
         self.path_out_log = log + me + '.log'
         self.path_in_data = working + 'transactions.csv'
 
@@ -233,6 +235,19 @@ def main():
             print
 
     subset.to_pickle(control.path_out_pickle)
+
+    # write record counts
+    counts = pd.DataFrame({'file_name': ['all'],
+                           'record_count': [subset.shape[0]]})
+    # counts = pd.DataFrame(dd)
+    counts.to_csv(control.path_out_counts)
+
+    # log the control variables
+    for k, v in control.__dict__.iteritems():
+        print 'control', k, v
+
+    print 'done'
+
 
 if __name__ == '__main__':
     main()

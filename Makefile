@@ -52,6 +52,8 @@ $(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01
 $(WORKING)/record-counts.tex: \
 	$(WORKING)/parcels-sfr-counts.csv \
 	$(WORKING)/deeds-al-g-counts.csv \
+	$(WORKING)/transactions-counts.csv \
+	$(WORKING)/transactions-subset2-counts.csv \
 	record-counts.py
 	$(PYTHON) record-counts.py
 
