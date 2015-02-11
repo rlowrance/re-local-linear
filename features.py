@@ -1,6 +1,7 @@
 def features(feature_set_name):
     '''Return dictionary[column_name] = transformation for the feature set.
 
+    Raise RuntimeError if not found.
 
     feature_set_name in [act, actLog, ct, ctLog, t, tLog,
                          bestNN, pcaNN,

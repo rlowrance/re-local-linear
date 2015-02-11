@@ -1,10 +1,13 @@
 # disable built-in rules
 .SUFFIXES:
 
+
+
 PYTHON = ~/anaconda/bin/python
 
 INPUT = ../data/input
 WORKING = ../data/working
+CVCELL = ../data/wokring/cv-cell
 
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F1.zip
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F2.zip
@@ -36,25 +39,42 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
+ALL += $(WORKING)/chart-02.pdf
 ALL += $(WORKING)/record-counts.tex
 
 all: $(ALL)
 
-# CHARTS
+# Creation of cvcell
+%.cvcell:
+	$(PYTHON) cv-cell.py $@
+
+# CHART 01
 $(WORKING)/chart-01.pdf: $(WORKING)/chart-01-data.pickle chart-01.py
 	$(PYTHON) chart-01.py
 
 $(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01-data.py
 	$(PYTHON) chart-01-data.py
 
+# CHART 02
+$(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
+	$(PYTHON) chart-02.py
+	
+chart-02 += price-act-ll-2008-30.cvcell
+chart-02 += price-act-ll-2008-60.cvcell
+# TODO: add other cells that chart-02 depends on
+
+$(WORKING)/chart-02-data.pickle: $(chart-02) chart-02-data.py
+	$(PYTHON) chart-02-data.py
+
+
 # GENERATED TEX FILES
 
 $(WORKING)/record-counts.tex: \
-	$(WORKING)/parcels-sfr-counts.csv \
-	$(WORKING)/deeds-al-g-counts.csv \
-	$(WORKING)/transactions-counts.csv \
-	$(WORKING)/transactions-subset2-counts.csv \
-	record-counts.py
+$(WORKING)/parcels-sfr-counts.csv \
+$(WORKING)/deeds-al-g-counts.csv \
+$(WORKING)/transactions-counts.csv \
+$(WORKING)/transactions-subset2-counts.csv \
+record-counts.py
 	$(PYTHON) record-counts.py
 
 
