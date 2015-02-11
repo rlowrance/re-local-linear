@@ -5,8 +5,9 @@
 # import built-ins and libraries
 import numpy as np
 import pandas as pd
-# import pdb
+import pdb
 import sys
+import cPickle as pickle
 
 # import my stuff
 from directory import directory
@@ -29,6 +30,7 @@ class Control(object):
         self.path_in_data = working + 'transactions.csv'
 
         self.testing = False
+        self.debugging = False
 
 
 def feature_names(feature_name_set):
@@ -223,7 +225,9 @@ def main():
                             month=subset['sale.month'],
                             day=subset['sale.day']))
     dt = pd.to_datetime(ddf.year * 10000 + ddf.month * 100 + ddf.day,
-                        format='%Y%m%d')
+                        format='%Y%m%d',
+                        unit='D',
+                        utc=True)
     subset['sale.datetime'] = dt
 
     # describe all columns in the subset
@@ -241,6 +245,15 @@ def main():
                            'record_count': [subset.shape[0]]})
     # counts = pd.DataFrame(dd)
     counts.to_csv(control.path_out_counts)
+
+    # read, if debugging
+    if control.debugging:
+        subset = None
+        f = open(control.path_out_pickle, 'rb')
+        subset = pickle.load(f)
+        f.close()
+        pdb.set_trace()  # investigate column sale.datetime
+        print 'investigate sale.datetime'
 
     # log the control variables
     for k, v in control.__dict__.iteritems():
