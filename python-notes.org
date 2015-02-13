@@ -1,0 +1,604 @@
+* Idioms for numpy
+** creation
+*** creation of special arrays
+    np.empty(shape)
+    np.eye(N)
+    np.eye(N, M)
+    np.ones(shape)
+    np.zeros(shape)
+    np.full(shape, fill_value)
+*** creation from existing data
+    np.array(object)
+    np.array(object, dtype)  # default dtype is np.float64
+    np.copy(a)
+    np.fromiter(iterable)
+*** creation with numerical ranges
+    np.arange(stop)
+    np.arange(start, stop)
+    np.arrange(start, stop, step)
+    np.linspace(start, stop)
+    np.linspace(start, stop, num)
+    np.linspace(start, stop, num, endpoint)
+    np.logspace(start, stop, [num, [endpoint]])
+** array attributes
+   a.shape  # tuple of dimensions
+   a.ndim   # number of dimensions
+   a.size   # number of elements
+   a.dtype  # data type
+   a.flat   # 1D iterator over elements
+   a.T      # transpose
+** NaNs
+Check if an array as a NaN value
+ 
+    np.isnan(np.sum(x))  # sum is NaN if any element is NaN
+    np.isnan(x).any()    # builds a boolean array of shape x.shape
+
+** Iterate over elements
+Iterate over elements as if they were in a 1D array.
+
+    for item in a.flat:
+       print item  # item successively holds each element of a
+
+
+Iterate over all elements in a pair of arrays.
+
+    for index, a_item in np.ndenumerate(a):
+        print index, a_item
+        b_item = b[index]
+*Idioms for python matplotlib.
+
+** Pyplot tutorial
+matplotlib.pyplot is a collection of command-style functions.
+
+Each function modifies a figure.
+
+Pyplot is stateful, keeping track of current figure, plotting area, and plotting axes.
+
+The current figure is an instance of matplotlib.figure.Figure. The default is figure(1).
+
+The current axes is an instance of matplotlib.axes.Axes. The default is subplot(111).
+
+Standard usage:
+1. Create Figure instance.
+2. Use the Figure instance to create one or more instances of Axes or Subplot. A Subplot is
+   an Axes that lives on a rectangular grid.
+3. Use Axes instance helper methods to create the primitives. 
+
+Example:
+
+    fig = plt.figure()
+    ax1 = fig.add_subplot(2, 1, 1) # two rows, one column, first plot
+    ax1.plot(...)
+    ax1.text(...)
+** masked arrays numpy.ma
+   Masked array = numpy.ndarray + mask
+   mask in {nomask, array of boolean}
+   if mask[i] is True, the corresponding element is masked (=invalid) and is not used
+*** creation with an explicit mask
+    import numpy as np
+    import numpy.ma as ma
+    x = np.array([1 ,2, np.nan])
+    mask = [0, 0, 1]  # don't use value 3
+    mx = na.masked_array(x, mask=mask)  # x and mask can be 2D and higher
+    mx.mean()  # returns 1.5, not NaN
+*** creation masking NaN and Inf values
+    mx = masked_invalid(x)  # create a view
+    mx = masked_invalid(x, True)  # create a copy
+*** viewing an existing nparray
+    mx = x.view(ma.MaskedArray)
+*** accessing only the valid entries (those with mask[i] not True]
+    mx[!mx.mask]
+    mx.compressed()  # return 1D ndarray with only valid entries
+*** properties
+    mx.mask
+    mx.data  # a view of the np.ndarray, not that some entries may be invalid
+* Idioms for pandas.
+NaN is the missing data marker.
+** Series
+A series is a 1D labeled array holding any Python object.
+The labels are called the index.
+*** creating
+   Series(randn(5))
+
+   Series(ndarray)  # default index is [0, 1, ...]
+   Series(ndarray, index=index)
+
+   Series(dict)  # default labels are the sorted keys
+   Series(dict, index=index)  # values are dict[index]
+
+   Series(scalar, index=index) # scalar is repeated to len(index)
+
+   Series(..., name=obj)  # often supplied automatically, if not provided
+*** accessing
+   s.index   # an Index
+   s.name    # a string
+
+   s[0]      # not a Series
+   s[:3]     # another Series
+   s[(4,2)]  # another Series
+   s[mask]   # another Series
+
+   s['a']    # not a Series, accessing as if a dict using label values
+   s['a'] = 12
+   s.get('a', np.nan)  # if 'a' not present, return NaN
+   'a' in s
+   'a' not in s
+*** vectorized operations
+   s + s
+   np.exp(s)
+   s[1:] + s[:-1]  # operations aligned on label (NOTE: unlike np)
+** Time Series (used np.datetime64 dtype)
+** DataFrame
+A DataFrame is a 2-d labeled structure with columns of potentially
+different types. Has optional row labels (index) and optional column labels.
+*** creating
+
+    DataFrame(obj, index=index, column=columns)
+      # if index and/or columns passed, then only those rows and
+      # columns are in the constructed DataFrame
+
+    # default index is union of the series indices
+    DataFrame(dict_of_series)
+    DataFrame(dict_of_dicts)
+
+    # default index is range(n)
+    DataFrame(dict_of_ndarrays)
+    DataFrame(dict_of_lists)
+    DataFrame(structured_or_record_array)
+
+    # index is range(n) for some n
+    # columsn are the keys of the dicts
+    DataFrame(list_of_dicts)
+
+    DataFrame(series)  # index is from series, column is series.name
+
+    # index is a multi-index
+    DataFrame(dict_of_tuples)
+
+    DataFrame.from_dict(dict_of_dicts, orient='columns') # dict keys are column
+    DataFrame.from_dict(dict_of_dicts, orient='index') # dict keys are row labels
+
+    DataFrame.from_records(list_of_tuples, index='C') # field C is the index
+    DataFrame.from_records(ndarray_with_structured_dtype, index='C') # field C is the index
+
+    DataFrame.from_items(seq_of_key_value_pairs, orient='column') # keys are column names
+    DataFrame.from_items(seq_of_key_value_pairs, orient='index') # keys are indices
+
+*** accessing
+    df.index    # an Index object
+    df.columns  # an Index object
+
+    # treating like a dict of like-indexed Series objects
+    df['a']  # a Series
+    del df['a']
+    col_b = df.pop('b')  # delete and return
+
+    # inserting new columns, by default at end of columns
+    df['new column'] = df['a'] + df['b']  # align indices
+    df['new column'] = scalar_value       # propogate to conform to index
+    df['new colunn'] = df['a'][:2]        # conform to index
+    df.insert(position, 'new column', new_value)  # insert at specified position
+
+    # indexing and selection
+    df[col]         # select column by name, return Series
+    df[ ['a','b'] ] # selecting multiple columns, return DataFrame
+    df.loc[label]   # select row by label, return Series with index = columns
+                      df.loc['a']           # a single row label
+                      df.loc['a', 'b', 'c'] # several row labels
+                      df.loc['a':'f']       # several row labels
+                      df.loc[boolean_array] # several rows
+    df.iloc[loc]    # select row by integer location, return Series
+                      df.iloc[5]            # a single row
+                      df.iloc[4,3,0]        # several rows
+                      df.iloc[1:7]          # several rows
+                      df.iloc[bolean_array] # several rows
+    df[5:10]        # slice rows, return DataFrame
+    df[bool_vec]    # select rows by boolean vector, return DataFrame
+
+    # operations are aligned on both row labels AND column
+    df1 + df2       # could create many NaNs
+
+    # if a Series is a TimeSeries (index has datetime objects) and 
+    # DataFrame contains dates, broadcasting is column-wise
+
+    df.apply(lambda row: f(row), axis=1) # iterating over rows
+* Idioms for Python 2.7.
+** naming and layout
+Per google style guide for python
+
+Naming rules
+
+    module_name
+    package_name
+    ClassName
+    method_name
+    ExceptionName
+    function_name
+    GLOBAL_CONSTANT_NAME
+    global_var_name
+    instance_var_name
+    function_parameter_name
+    local_var_name
+
+Script design: Put the main functionality of a script in a main() function.
+
+Class inheritence: If a class inherits from no other classes, explicitly inherit from object.
+
+    class SampleClass(object):
+        pass
+
+    class OuterClass(object):
+        class InnerClass(object):
+            pass
+
+    class ChildClass(ParentClass):
+        pass
+
+** invoking python
+Access command line args
+
+    import sys
+    sys.argv[0]  # script name
+** strings
+Literals, with interpretation of backslashed characters
+
+    'abc\''  # these are the same value
+    "abc'"
+
+Literals, without the interpretation of backslashed characters
+
+   r'ab\''  # 4 characters
+
+Multi-line strings
+
+    """First line
+    Second line
+    """
+
+Basic manipulation
+
+    s[0:4]  # substring
+    s[:4]   # default starts at 0
+    s[1:]   # drop first character
+    s[-1]   # last character
+    'abc' 'def'  # concatentation of only literals
+    s1 + s2      # concatentation
+    len(s)
+
+** lists (which are mutable)
+Basics
+
+    squares = [1, 4, 9]
+    squares[0]
+    squares[1:]
+    squares[-1]
+    squares + squares  # concatentation
+    squares[1] = 16  # lists are mutable
+    squares.append(16)  # mutate squares
+    len(squares)
+
+Ranges
+
+    range(3)      # [0, 1, 2]
+    range(1, 3)   # [1, 2]
+    xrange(stop)
+    xrange(start, stop, step)
+    xrange(start, stop)
+
+Methods
+
+    list.append(x)
+    list.extend(L)  #append all items in list L
+    list.insert(i, x)  # shove others down
+    list.remove(x)     # remove item with value x
+    list.pop()         # remove and return last item
+    list.pop(i)        # remove and return i-th item
+    list.index(x)      # position of first item with value x
+    list.count(x)      # number of times x is in list
+    list.sort(comp=None, key=None, reverse=False)
+    list.reverse()
+
+list comprehensions
+
+    [<expr> <for clauses> <zero or more if clauses>]
+
+    [(x,y) for x in [1,2,3] for y in [3,1,4] if x != y]
+
+delete item from list
+    list.pop()   # delete and return last item
+    list.pop(i)  # delete and return i-th item
+    del list[i]  # delete i-th item
+
+** tuples (which are immutable)
+Basics
+
+    t = 1, 2, 3  # values separated by commas
+    empty = ()   # no items
+    singleton = 1,  # note trailing comma
+    len(t)
+    a,b,c = t  # unpack tuple
+
+** sets
+Basics
+
+    fruit = set(['apple', 'orange'])
+    s = set()        # mutable
+    s = frozenset()  # not mutable
+    len(s)
+    x in s
+    x not in s
+    s.isdisjoint(other)
+    s.issubset(other)
+    s.issuperset(other)
+    s.union(other, ...)
+    s.intersection(other, ...)
+    s.difference(other, ...)
+    s.symmetric_difference(other)
+    copy(s)  # shallow copy
+
+** dictionaries
+   Def: an unordered set of immutable key: mutable value pairs
+*** creation
+    {key1: value1, key2: value2}
+
+    dict(key1=value1, key2=value2)  # when keys are strings
+    dict(**kwarg)  # like above
+
+    dict(mapping, **kwarg)  # initialize from existing with additions
+
+    dict([(key1, value1), (key2, value2)])
+    dict(iterable, **kwarg)  # initialize from existing with additions
+
+    {key_var: value_expr for key_var in seq}  # dict comprehension
+
+    fromkeys(seq[, value])  # class method; create new dict from with keys from seq
+*** basic operations
+    len(d)
+    d[key]  # access
+    get(key, default)  # return default if key not in d
+    d[key] = value
+    clear() # remove all items
+    del d[key]
+    update(other)  # set (key,value) pairs to those in other
+*** accessing
+    copy()      # shallow copy
+    items()     # copy of (key,value) pairs
+    keys()      # copy of keys
+    values()    # copy of values
+    pop(key, default)  # if present, remove key and return it; otherwise, return default
+    setdefault(key, default)  # if key is in d, return it; otherwise, set it to default and return default
+*** creating dictview objects
+    viewitems()
+    viewkeys()
+    viewvalues()
+*** testing
+    key in d
+    key not in d
+    has_key(key)
+*** iterators
+    iter(d)      # same as iterkeys()
+    iterkeys()   # iterate over keys
+    iteritems()  # iterate over (key,value) pairs
+    itervalues() # iteratove over values
+    popitem()    # remove and return next (key, value) pair;
+** functional programming tools
+Functional programming tools
+
+    filter(function, sequence)  # items for which function(item) is true
+    map(function, sequence)
+    reduce(binary_function, sequence)
+
+** control flow 
+if statements (no switch or case statement)
+
+    if x < 0:
+       f(x)
+    elif x == 0:
+       g(x)
+    else:
+       h(x)
+    
+for statements
+
+    for x in y:
+       print x
+       if c:
+           break
+       if d:
+           continue  # next iterant
+    else:  # optional, executed when all iterants have been processes
+       f()
+
+while statements
+
+   while f(x):
+      print x
+   else:  # optional, executed when condition becomes false
+      f()
+
+** functions
+Defining
+
+   def fib(n):
+       '''List of Fibonacci series up to n.
+       
+       Other comments about the function.
+       '''
+       # args are passed by call-by-object-reference (not value)
+       result = []
+       a, b = 0, 1
+       while a < n:
+           result.append(a)
+           a, b, = b, a+b
+       return result  # without a return statement, returns object None
+
+Default arg values
+
+    def f(a, b=4):
+       pass
+
+Keyword args
+
+    def f(a, b, c = 'default c value'):
+        pass  #keyword args follow positional args
+
+Arbitrary agument lists
+
+    def f(a, b=1, *args):
+        pass # args variable is a tuple
+
+Returning function
+
+    def make_increment(n):
+        return lambda x: x + n
+
+
+** modules
+Use a module
+
+    import fibo
+    fibo.fib(100)  # call function defined by importing module
+
+    from fibo import fib, other
+    fib(100)
+
+    from fibo import *
+    fib(100)
+
+Define a module
+
+    import other_module
+
+    # definitions
+
+    # checking if running as a script
+    if __name__ == "__main__":
+        # statements
+
+** printing and formatting for printing
+print statement
+
+    # print to stdout with space between each item
+    print  # write just \n
+    print expression
+    print expression,  # omit trailing \n
+    print expression, expression
+    print expression, expression,
+
+   # print to file objects 
+   print file_like_object >> expression, expression [,]
+
+string.format() method
+
+    string.format(*args, **kwargs)
+    'The sum is {0}'.format(1+2)
+
+string format fields are inside of curly braces within the string. These are the replacement fields.
+
+Which args are accessed:
+
+    {0}  # first positional argument
+    {}   # next positional argument
+    {name}  # keyword name
+
+Which conversions are done. Conversions are optional.
+  
+    {!s}  # call str() on the argument
+    {!r}  # call repr() on the argument
+
+
+Format specs are optional as well.
+
+    {:[width][.precision][type]}
+
+Types
+
+    d  decimal integer (in base 10)
+    x  hex format
+    n  number (with digit separators)
+    e  exponent notation
+    f  fixed point
+    g  general format
+    %  percent; multiply by 100 and append % sign
+
+** pickling
+*** Write object to pickled file
+    import cPickle as pickle
+    f = open(path, 'wb')
+    pickle.dump(obj, f)
+    f.close()
+*** Read object from pickled file
+    f = open(path, 'rb')
+    obj = pickle.load(f)
+    f.close()
+
+** scoping
+   A scope is a textual region of a program where an unqualified reference to a name
+   attempts to find the name in a namespace.
+
+   A namespace is a mapping of names to objects (implemented as dictionaries).
+
+   Different namespaces may refer to the same object.
+
+   Scopes are determined statically and used dynamically.
+
+   A local namespace is created when a function is called and forgotten when it exits.
+   
+   Two names spaces always present:
+   - __builtins__: contains the built in functions
+   - __main__: contains the top level definitions
+
+   Dynamic nesting of scopes with a module:
+   - inner-most; created when function is invoked; contains local names
+   - scopes of enclosing functions, containing non-local and non-global names
+   - next-to-last scope, containing module's global names
+   - outermost scope, containing the built-ins (in dictionary __builtin__)
+
+   If a name is declared global, the inner-most scope is not searched.
+
+   Assignments do not coy data, they just bind names to objects.
+
+   del x doesn't delete, it just removes the binding to x from the local namespace.
+
+   Operations that introduce new names use the local scope (except if they are global).
+
+   A class definition introduces a new local scope and creates a class object.
+
+** classes
+   A class definition introduces a new local scope and creates a class object.
+
+   Class objects support these operations:
+   - attribute reference: ex C.i = 10; C.f(a, b, c)
+   - instantiation, creating a new object: C(x, y), invoking C.__init__(x, y)
+
+   Class instances support only attribute reference.
+   - data attribures are instance variables
+   - methods objects correspond to the functions created with the class was defined
+     x.f is a method reference to function C.f
+
+   Note: data attributes override method attributes with the same name
+
+   class and instance variables and calling other methods
+      class Dog(BaseClassName):
+         kind = 'canine'  # class variable
+         def __init__(self, name):
+             self.name = name  # instance variable
+         def f(self, x):
+             print x
+         def g(self, x):
+             self.f(x)
+             self.f(x)
+
+   The class of every object is stored as obj.__class__
+
+   C structs
+      class Record(object):
+         pass
+      record = Record()
+      record.field2 = value1
+** days between dates
+   from datetime import date
+   a = date(2011, 1, 1)
+   b = date(2011, 12, 31)
+   (b - a).days
+
