@@ -7,7 +7,7 @@ PYTHON = ~/anaconda/bin/python
 
 INPUT = ../data/input
 WORKING = ../data/working
-CVCELL = ../data/wokring/cv-cell
+CVCELL = ../data/working/cv-cell
 
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F1.zip
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F2.zip
@@ -41,8 +41,15 @@ ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02.pdf
 ALL += $(WORKING)/record-counts.tex
+#ALL += $(WORKING)/python-dependencies.makefile
 
 all: $(ALL)
+
+# dependencies found in python source files
+include $(WORKING)/python-dependencies.makefile
+
+$(WORKING)/python-dependencies.makefile: python-dependencies.py
+
 
 # Creation of cvcell
 %.cvcell:
@@ -59,11 +66,11 @@ $(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01
 $(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
 	$(PYTHON) chart-02.py
 	
-chart-02 += price-act-ll-2008-30.cvcell
-chart-02 += price-act-ll-2008-60.cvcell
+chart-02-data += $(CVCELL)/ols-price-act-2008-30.pickle
+# chart-02 += price-act-ll-2008-60.cvcell
 # TODO: add other cells that chart-02 depends on
 
-$(WORKING)/chart-02-data.pickle: $(chart-02) chart-02-data.py
+$(WORKING)/chart-02-data.pickle: $(chart-02-data) chart-02-data.py
 	$(PYTHON) chart-02-data.py
 
 
@@ -110,18 +117,15 @@ $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
 $(WORKING)/transactions-subset2.pickle \
 $(WORKING)/transactions-subset2.csv \
 : $(WORKING)/transactions.csv transactions-subset2.py
-	$(PYTHON) transations-subset2.py
+	$(PYTHON) transactions-subset2.py
 
 $(WORKING)/transactions-subset2-test%pickle \
 $(WORKING)/transactions-subset2-train%pickle \
 : $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
 	$(PYTHON) transactions-subset2-test.py
 
-# source file dependencies charts
-chart-01.py:      directory.py Logger.py
-chart-01-data.py: directory.py Logger.py
 
-# source file dependencies basic data
+# source file dependencies R language
 census.R: \
 	Directory.R InitializeR.R
 deeds-al-g.R: \
@@ -134,7 +138,5 @@ parcels-sfr.R: \
 	Directory.R InitializeR.R LUSEI.R Printf.R ReadRawParcels.R
 transactions.R: \
 	Directory.R InitializeR.R BestApns.R ReadCensus.R ReadDeedsAlG.R ReadParcelsSfr.R ZipN.R
-transactions-subset2.py: \
-	directory.py features.py year_month_day.py Logger.py SCODE.py TRNTP.py
 transactions-subset2-test.py: \
 	directory.py Logger.py
