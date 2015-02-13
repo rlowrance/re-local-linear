@@ -20,6 +20,8 @@ def directory(name):
         return root + 'data/working/log/'
     elif name == 'working':
         return root + 'data/working/'
+    elif name == 'src':
+        return root + 'src/'
     else:
         raise ValueError(name)
 
