@@ -1,4 +1,4 @@
-# create file WORKING/chart01-data.pickle containing tuple with
+# create file WORKING/chart-01-data.pickle containing tuple with
 # dictionary objects median_price, num_transactions, both with keys
 # (year, month)
 #
