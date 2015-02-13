@@ -8,6 +8,7 @@ import pandas as pd
 import pdb
 import sys
 import cPickle as pickle
+import datetime
 
 # import my stuff
 from directory import directory
@@ -140,7 +141,7 @@ def main():
     # NOTE: need 1000 records to read enough POOL.FLAG to force type to object
     # if this isn't done, add_has_pool fails
     df = pd.read_csv(control.path_in_data,
-                     nrows=1000 if control.testing else None,
+                     nrows=10000 if control.testing else None,
                      dtype=mixed_types)
 
     if True:
@@ -217,18 +218,25 @@ def main():
 
     subset = df.ix[selector.all_selected, features_used]
 
-    # add datetime feature
-    # NOTE: Cannot do this before the subset is formed, as some of the
-    # day numbers in the full dataframe are 0, and a 0 value causes an
-    # exception in pd.datetime
-    ddf = pd.DataFrame(dict(year=subset['sale.year'],
-                            month=subset['sale.month'],
-                            day=subset['sale.day']))
-    dt = pd.to_datetime(ddf.year * 10000 + ddf.month * 100 + ddf.day,
-                        format='%Y%m%d',
-                        unit='D',
-                        utc=True)
-    subset['sale.datetime'] = dt
+    # add date feature sale.date
+    years = subset['sale.year'].values
+    months = subset['sale.month'].values
+    days = subset['sale.day'].values
+
+    # build list of python dates
+    dates = []
+    for i in xrange(len(years)):
+        date = datetime.date(int(years[i]),
+                             int(months[i]),
+                             int(days[i]))
+        dates.append(date)
+
+    date_series = pd.Series(dates)
+    if date_series.isnull().any():
+        raise ValueError('null date')
+    # date_series index is wrong, so fix it
+    date_series.index = subset.index
+    subset['sale.python_date'] = date_series  # NOTE: aligns indices
 
     # describe all columns in the subset
     print 'subset.shape', subset.shape
@@ -239,6 +247,16 @@ def main():
             print
 
     subset.to_pickle(control.path_out_pickle)
+
+    # read it back in and test sale.python_date for nulls
+    if False:
+        f = open(control.path_out_pickle, 'rb')
+        d = pickle.load(f)
+        print (d)
+        python_date = d['sale.python_date']
+        if python_date.isnull().any():
+            print python_date
+            raise ValueError('null sale.python_date')
 
     # write record counts
     counts = pd.DataFrame({'file_name': ['all'],

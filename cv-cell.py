@@ -24,6 +24,8 @@ import pandas as pd
 from directory import directory
 from features import features
 from Logger import Logger
+from CvResult import CvResult
+from FoldResult import FoldResult
 
 
 def print_calling_sequence():
@@ -73,6 +75,8 @@ class Control(object):
 
         self.testing = False
         self.debugging = False
+        # eliminate null is input column sale.python_date
+        self.debugging_sale_python_date = False
 
 
 def relevant_test(df, test_years):
@@ -129,7 +133,7 @@ def check_sale_datetime(dt):
         print 'datetime with non-zero time element', dt
 
 
-def actuals_estimates(sale_datetime, fold_test, fold_train, control):
+def actuals_estimates(sale_date, fold_test, fold_train, control):
     '''Return actuals and estimates for all test transactions with sale date.
 
     Return two np arrays.
@@ -137,15 +141,15 @@ def actuals_estimates(sale_datetime, fold_test, fold_train, control):
     # check_sale_datetime(sale_datetime)
 
     # create test data
-    test_indices = np.where(fold_test['sale.datetime'] == sale_datetime)
+    test_indices = np.where(fold_test['sale.python_date'] == sale_date)
     testing = fold_test.iloc[test_indices]
     actuals = testing['SALE.AMOUNT']
 
     # create training data
-    train_datetime = fold_train['sale.datetime']
+    train_date = fold_train['sale.python_date']
     training_days = datetime.timedelta(int(control.training_days))
-    before_sale = train_datetime < sale_datetime
-    within_training_days = (train_datetime + training_days) >= sale_datetime
+    before_sale = train_date < sale_date
+    within_training_days = (train_date + training_days) >= sale_date
     in_training = np.logical_and(before_sale, within_training_days)
     if in_training.sum() > 3000:  # while debugging
         print in_training.sum()
@@ -153,7 +157,7 @@ def actuals_estimates(sale_datetime, fold_test, fold_train, control):
         pdb.set_trace()
     training = fold_train[in_training]
 
-    train_x, train_y, test_x = xy(sale_datetime, training, testing, control)
+    train_x, train_y, test_x = xy(sale_date, training, testing, control)
 
     if control.model == 'ols':
         m = linear_model.LinearRegression(fit_intercept=True,
@@ -238,17 +242,18 @@ def xy(test_date, training, testing, control):
 
 
 def fit_local_models(df, control):
-    '''Return dictionary cv_result[fold_number].'''
+    '''Return CvResult instance for the cell specified by control.command_line.
+    '''
 
+    # create iterator across fold indices
     kf = cross_validation.KFold(df.shape[0],
                                 n_folds=control.n_folds,
                                 shuffle=True,
                                 random_state=control.random_state)
 
     # for each fold
+    cvresult = CvResult()
     fold_number = 0
-    cv_result = {}
-
     for train_indices, test_indices in kf:
         fold_number += 1
 
@@ -260,23 +265,27 @@ def fit_local_models(df, control):
 
         # iterate over the unique sale dates in the test fold
         # sort the dates, so that the print out is easier to follow visually
-        unique_sale_datetimes = fold_test_relevant['sale.datetime'].unique()
-        unique_sale_datetimes_sorted = np.sort(unique_sale_datetimes)
+        dates = fold_test_relevant['sale.python_date']
+        unique_sale_dates = dates.unique()
+        unique_sale_dates_sorted = np.sort(unique_sale_dates)
 
-        fold_result = {}
-
-        for this_sale_datetime in unique_sale_datetimes_sorted.flat:
-            actuals, estimates = actuals_estimates(this_sale_datetime,
+        # create the fold results by analyzing each date
+        foldresult = FoldResult()
+        for this_sale_date in unique_sale_dates_sorted.flat:
+            actuals, estimates = actuals_estimates(this_sale_date,
                                                    fold_test_relevant,
                                                    fold_train,
                                                    control)
-            fold_result[this_sale_datetime] = {'actuals': actuals,
-                                               'estimates': estimates}
-            print control.command_line, this_sale_datetime, len(estimates)
+            foldresult.extend(actuals, estimates)
+            print \
+                control.command_line, \
+                fold_number, \
+                this_sale_date, \
+                len(estimates)
 
-        cv_result[fold_number] = fold_result
+        cvresult.save_FoldResult(foldresult)
 
-    return cv_result
+    return cvresult
 
 
 def main():
@@ -293,11 +302,17 @@ def main():
     df = pickle.load(f)
     f.close()
 
+    # check that no sale.python_date value is not null
+    if control.debugging_sale_python_date:
+        dates = df['sale.python_date']
+        if dates.isnull().any():
+            print dates
+            raise ValueError('a sale.python_date is null')
+
     cv_result = fit_local_models(df=df,
                                  control=control)
 
     # write cross validation result
-    pdb.set_trace()
     f = open(control.path_out, 'wb')
     pickle.dump((cv_result, control), f)
     f.close()

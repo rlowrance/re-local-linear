@@ -97,6 +97,12 @@ def main():
 
     df = pd.read_pickle(control.path_in_data)
 
+    # make sure that sale.python_date is never NaN (null)
+    if False:
+        dates = df['sale.python_date']
+        if dates.isnull().any():
+            raise ValueError('at least one sale.python_date is null')
+
     if control.testing and False:
         pdb.set_trace()
         df = df[0:30]
