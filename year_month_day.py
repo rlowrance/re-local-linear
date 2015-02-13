@@ -19,10 +19,10 @@ if __name__ == '__main__':
         def test_synthetic(self):
             dates = np.array([12345678, 12339988])
             years, months, days = year_month_day(dates)
-            print years, months, days
+            # print years, months, days
             self.assertEqual(years[0], 1234)
             self.assertEqual(years[1], 1233)
-            self.assertEqual(months[0], 45)
+            self.assertEqual(months[0], 56)
             self.assertEqual(months[1], 99)
             self.assertEqual(days[0], 78)
             self.assertEqual(days[1], 88)
