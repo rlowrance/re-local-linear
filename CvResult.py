@@ -1,3 +1,5 @@
+import numpy as np
+
 from FoldResult import FoldResult
 import Maybe
 
@@ -17,7 +19,7 @@ class CvResult(object):
         self.fold_results[len(self.fold_results)] = fr
 
     def median_errors_ignore_nans(self):
-        '''Return Maybe(list of median errors from folds).
+        '''Return Maybe(np.array of median errors from folds).
         '''
         results = []
         for fold_result in self.fold_results.itervalues():
@@ -28,11 +30,10 @@ class CvResult(object):
         if len(results) == 0:
             return Maybe.NoValue()
         else:
-            return Maybe.Maybe(results)
+            return Maybe.Maybe(np.array(results))
 
 if __name__ == '__main__':
     import unittest
-    import numpy as np
 
     class Test(unittest.TestCase):
 
