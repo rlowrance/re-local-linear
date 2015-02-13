@@ -110,23 +110,25 @@ The labels are called the index.
 
    Series(..., name=obj)  # often supplied automatically, if not provided
 *** accessing
-   s.index   # an Index
-   s.name    # a string
+    s.index   # an Index
+    s.name    # a string
+    s.values  # np.array
 
-   s[0]      # not a Series
-   s[:3]     # another Series
-   s[(4,2)]  # another Series
-   s[mask]   # another Series
 
-   s['a']    # not a Series, accessing as if a dict using label values
-   s['a'] = 12
-   s.get('a', np.nan)  # if 'a' not present, return NaN
-   'a' in s
-   'a' not in s
+    s[0]      # not a Series, 0 is a label in the index
+    s[:3]     # another Series
+    s[(4,2)]  # another Series
+    s[mask]   # another Series
+
+    s['a']    # not a Series, accessing as if a dict using label values
+    s['a'] = 13
+    s.get('a', np.nan)  # if 'a' not present, return NaN
+    'a' in s
+    'a' not in s
 *** vectorized operations
-   s + s
-   np.exp(s)
-   s[1:] + s[:-1]  # operations aligned on label (NOTE: unlike np)
+    s + s
+    np.exp(s)
+    s[1:] + s[:-1]  # operations aligned on label (NOTE: unlike np)
 ** Time Series (used np.datetime64 dtype)
 ** DataFrame
 A DataFrame is a 2-d labeled structure with columns of potentially
