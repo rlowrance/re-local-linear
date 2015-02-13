@@ -53,8 +53,6 @@ def main():
     process_input_file('deeds', control.path_in_deeds)
     process_input_file('transactions', control.path_in_transactions)
     process_input_file('subsettwo', control.path_in_transactions_subset2)
-    import pdb
-    pdb.set_trace()
 
     # create the commands
     # NOTE: doesn't depend on the input files
