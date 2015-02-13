@@ -1,6 +1,8 @@
-import Maybe
+# system imports
 import numpy as np
 
+# local imports
+import Maybe
 
 class FoldResult(object):
     '''Computations on a cross validation fold.'''
