@@ -39,7 +39,7 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
-ALL += $(WORKING)/chart-02.pdf
+ALL += $(WORKING)/chart-02.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -63,12 +63,15 @@ $(WORKING)/chart-01-data.pickle: $(WORKING)/transactions-subset2.pickle chart-01
 	$(PYTHON) chart-01-data.py
 
 # CHART 02
-$(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
-	$(PYTHON) chart-02.py
-	
-chart-02-data += $(CVCELL)/ols-price-act-2008-30.pickle
-# chart-02 += price-act-ll-2008-60.cvcell
-# TODO: add other cells that chart-02 depends on
+chart-02.makefile: chart-02.py
+	$(PYTHON) chart-02.py makefile
+include chart-02.makefile
+#$(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
+#	$(PYTHON) chart-02.py
+#	
+#chart-02-data += $(CVCELL)/ols-price-act-2008-30.pickle
+## chart-02 += price-act-ll-2008-60.cvcell
+## TODO: add other cells that chart-02 depends on
 
 $(WORKING)/chart-02-data.pickle: $(chart-02-data) chart-02-data.py
 	$(PYTHON) chart-02-data.py
@@ -138,5 +141,3 @@ parcels-sfr.R: \
 	Directory.R InitializeR.R LUSEI.R Printf.R ReadRawParcels.R
 transactions.R: \
 	Directory.R InitializeR.R BestApns.R ReadCensus.R ReadDeedsAlG.R ReadParcelsSfr.R ZipN.R
-transactions-subset2-test.py: \
-	directory.py Logger.py
