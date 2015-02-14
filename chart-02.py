@@ -236,15 +236,13 @@ def create_makefile(control):
         for response in control.responses:
             for predictor in control.predictors:
                 for training_period in control.training_periods:
-                    format_str = '%s%s-%s-%s-%s-%s.pickle'
-                    values = (control.path_dir_cells,
-                              control.model,
-                              response,
-                              predictor,
-                              control.year,
-                              training_period)
-                    cell_name = format_str % values
-                    cell_names.append(cell_name)
+                    cell_name = '%s-%s-%s-%s-%s' % (control.model,
+                                                    response,
+                                                    predictor,
+                                                    control.year,
+                                                    training_period)
+                    file_name = '%s.cvcell' % cell_name
+                    cell_names.append(file_name)
                     if control.testing and len(cell_names) > 0:
                         return cell_names
         return cell_names
