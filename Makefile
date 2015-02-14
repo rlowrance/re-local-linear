@@ -53,7 +53,7 @@ $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 # Creation of cvcell
 %.cvcell:
-	$(PYTHON) cv-cell.py $@
+	$(PYTHON) cv-cell.py $*
 
 # CHART 01
 $(WORKING)/chart-01.pdf: $(WORKING)/chart-01-data.pickle chart-01.py
