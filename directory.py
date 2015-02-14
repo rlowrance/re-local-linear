@@ -13,7 +13,7 @@ def directory(name):
 
     root = '../'
     if name == 'cells':
-        return root + 'data/working/e-cv-cells/'
+        return root + 'data/working/cv-cell/'
     elif name == 'input':
         return root + 'data/input/'
     elif name == 'log':
