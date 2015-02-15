@@ -61,7 +61,7 @@ class Control(object):
             print_calling_sequence()
             raise RuntimeError('unknown predictors:' + self.predictors)
 
-        self.path_out = cvcell + arg1 + '.pickle'
+        self.path_out = cvcell + arg1 + '.cvcell'
         self.path_out_log = log + me + arg1 + '.log'
         self.path_in_train = working + 'transactions-subset2-train.pickle'
 
@@ -96,30 +96,6 @@ def relevant_train(df, the_sale_datetime, training_days):
     return df[in_training]
 
 
-def add_ageOLD(the_sale_datetime, df):
-    '''Mutate df to have age and age^2 features.
-
-    Do this if the df has features year built or effective year built.
-    '''
-
-    def add(new_column_name_base, year_column_name):
-        'Add age and age^2, in years.'
-        pdb.set_trace()
-        year = df[year_column_name]
-        year_datetime = np.datetime64(year)
-        age = the_sale_datetime - year_datetime
-        age2 = age * age
-        df[new_column_name_base] = age
-        df[new_column_name_base + '2'] = age2
-
-    pdb.set_trace()
-    column_names = df.columns
-    if 'year.built' in column_names:
-        add('age', 'year.built')
-    if 'effective.year.built' in column_names:
-        add('effective.age', 'effective.year.built')
-
-
 def check_sale_datetime(dt):
     '''Check that the time components are always zero.'''
     # NOTE: This code doesn't work, as there are not such fields
@@ -133,32 +109,43 @@ def check_sale_datetime(dt):
         print 'datetime with non-zero time element', dt
 
 
+def get_transaction_dates(df):
+    return df['sale.python_date']
+
+
+def select_testing(sale_date, df):
+    '''Return DataFrame with only testing transactions.
+    '''
+    transaction_dates = get_transaction_dates(df)
+    test_indices = np.where(transaction_dates == sale_date)
+    testing = df.iloc[test_indices]
+    return testing
+
+
+def select_training(sale_date, df, training_days):
+    '''Return DataFrame containin only training transactions.
+    '''
+    first_date = sale_date - datetime.timedelta(int(training_days))
+    transaction_dates = get_transaction_dates(df)
+    in_training = np.logical_and(transaction_dates < sale_date,
+                                 transaction_dates >= first_date)
+    training = df[in_training]
+    return training
+
+
 def actuals_estimates(sale_date, fold_test, fold_train, control):
     '''Return actuals and estimates for all test transactions with sale date.
 
     Return two np arrays.
     '''
-    # check_sale_datetime(sale_datetime)
+    # select relevant transactions
+    testing = select_testing(sale_date, fold_test)
+    training = select_training(sale_date, fold_train, control.training_days)
 
-    # create test data
-    test_indices = np.where(fold_test['sale.python_date'] == sale_date)
-    testing = fold_test.iloc[test_indices]
-    actuals = testing['SALE.AMOUNT']
-
-    # create training data
-    train_date = fold_train['sale.python_date']
-    training_days = datetime.timedelta(int(control.training_days))
-    before_sale = train_date < sale_date
-    within_training_days = (train_date + training_days) >= sale_date
-    in_training = np.logical_and(before_sale, within_training_days)
-    if in_training.sum() > 3000:  # while debugging
-        print in_training.sum()
-        print 'big training set'
-        pdb.set_trace()
-    training = fold_train[in_training]
-
+    # convert relevant transactions to x,y matrices
     train_x, train_y, test_x = xy(sale_date, training, testing, control)
 
+    # dispatch on model
     if control.model == 'ols':
         m = linear_model.LinearRegression(fit_intercept=True,
                                           normalize=False,
@@ -168,6 +155,7 @@ def actuals_estimates(sale_date, fold_test, fold_train, control):
     else:
         raise NotImplemented('model: ' + control.model)
 
+    actuals = testing['SALE.AMOUNT']
     return actuals, estimates
 
 
