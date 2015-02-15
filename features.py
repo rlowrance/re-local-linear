@@ -3,7 +3,7 @@ def features(feature_set_name):
 
     Raise RuntimeError if not found.
 
-    feature_set_name in [act, actLog, ct, ctLog, t, tLog,
+    feature_set_name in [act, actlog, ct, ctlog, t, tlog,
                          bestNN, pcaNN,
                          id, prices
                          best15{census|city|zip}]
@@ -101,7 +101,7 @@ def features(feature_set_name):
         d.update(predictors_taxroll)
         return transform(d, use_log=False)
 
-    elif feature_set_name == 'actLog':
+    elif feature_set_name == 'actlog':
         d = predictors_assessment
         d.update(predictors_census)
         d.update(predictors_taxroll)
@@ -112,7 +112,7 @@ def features(feature_set_name):
         d.update(predictors_taxroll)
         return transform(d, use_log=False)
 
-    elif feature_set_name == 'ctLog':
+    elif feature_set_name == 'ctlog':
         d = predictors_census
         d.update(predictors_taxroll)
         return transform(d, use_log=True)
@@ -121,7 +121,7 @@ def features(feature_set_name):
         d = predictors_taxroll
         return transform(d, use_log=False)
 
-    elif feature_set_name == 'tLog':
+    elif feature_set_name == 'tlog':
         d = predictors_taxroll
         return transform(d, use_log=True)
 
@@ -181,24 +181,24 @@ if __name__ == '__main__':
             f = get('act')
             self.assertEqual(len(f), 27)
 
-        def test_actLog(self):
-            f = get('actLog')
+        def test_actlog(self):
+            f = get('actlog')
             self.assertEqual(len(f), 27)
 
         def test_ct(self):
             f = get('ct')
             self.assertEqual(len(f), 24)
 
-        def test_ctLog(self):
-            f = get('ctLog')
+        def test_ctlog(self):
+            f = get('ctlog')
             self.assertEqual(len(f), 24)
 
         def test_t(self):
             f = get('t')
             self.assertEqual(len(f), 17)
 
-        def test_tLog(self):
-            f = get('tLog')
+        def test_tlog(self):
+            f = get('tlog')
             self.assertEqual(len(f), 17)
 
     unittest.main()
