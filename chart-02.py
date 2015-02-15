@@ -50,7 +50,7 @@ class Control(object):
         # components of cell names
         self.model = 'ols'
         self.responses = ['price', 'logprice']
-        self.predictors = ['act', 'actlog', 'ac', 'aclog']
+        self.predictors = ['act', 'actlog', 'ct', 'ctlog']
         self.year = '2008'
         self.training_periods = ['30', '60', '90', '120', '150', '180',
                                  '210', '240', '270', '300', '330', '360']
@@ -230,9 +230,10 @@ def create_data(control):
 
 def create_makefile(control):
     '''Write makefile to source directory.'''
-    def make_cell_names():
+
+    def make_file_names():
         '''Return list of cell names.'''
-        cell_names = []
+        file_names = []
         for response in control.responses:
             for predictor in control.predictors:
                 for training_period in control.training_periods:
@@ -241,11 +242,12 @@ def create_makefile(control):
                                                     predictor,
                                                     control.year,
                                                     training_period)
-                    file_name = '%s.cvcell' % cell_name
-                    cell_names.append(file_name)
-                    if control.testing and len(cell_names) > 0:
-                        return cell_names
-        return cell_names
+                    file_name = '%s%s.cvcell' % (control.dir_cells,
+                                                 cell_name)
+                    file_names.append(file_name)
+                    if control.testing and len(file_names) > 0:
+                        return file_names
+        return file_names
 
     def make_lines():
         '''Produce lines for makefile.
@@ -260,7 +262,7 @@ def create_makefile(control):
         '''
         lines = []
         lines.append('%s-cells = %s' % (control.me,
-                                        ' '.join(make_cell_names())))
+                                        ' '.join(make_file_names())))
 
         lines.append('%s%s.txt: %s%s.data %s.py' % (control.dir_working,
                                                     control.me,

@@ -52,7 +52,7 @@ $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 
 # Creation of cvcell
-%.cvcell:
+$(CVCELL)/%.cvcell:
 	$(PYTHON) cv-cell.py $*
 
 # CHART 01
