@@ -59,7 +59,7 @@ class Control(object):
         self.debugging = False
 
 
-class Table(object):
+class Report(object):
 
     def __init__(self, lines):
         self.lines = lines
@@ -90,7 +90,7 @@ def create_txt(control):
         lines.append(' ')
 
     def read_values():
-        '''Return table dict built by make_data.'''
+        '''Return report dict built by make_data.'''
         f = open(control.path_data, 'rb')
         values = pickle.load(f)
         f.close()
@@ -110,43 +110,45 @@ def create_txt(control):
                  'yes', 'no')
         t.header('ndays', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ')
 
-    def append_detail_lines(table, values):
-        '''Append body lines to Table t using values.'''
-        def append_line(ndays):
-            def v(response, predForm, usetax):
-                '''Return int or 0, the value in the table'''
-                def make_predictor(predForm, usetax):
-                    prefix = 'act' if usetax == 'yes' else 'ac'
-                    suffix = 'log' if predForm == 'log' else ''
-                    return prefix + suffix
+    def make_predictor(predForm, usetax):
+        '''Return predictor.'''
+        prefix = 'act' if usetax == 'yes' else 'ac'
+        suffix = 'log' if predForm == 'log' else ''
+        return prefix + suffix
 
-                key = (response,
-                       make_predictor(predForm, usetax),
-                       ndays)
-                if key in values:
-                    potential_value = values[key]
-                    if potential_value is None:
-                        print 'None value for key', key
-                        return 0
-                    else:
-                        return int(potential_value)
-                else:
-                    print 'no value for', key
+    def append_detail_line(report, values, ndays):
+        def v(response, predForm, usetax):
+            '''Return int or 0, the value in the report'''
+            key = (response,
+                   make_predictor(predForm, usetax),
+                   ndays)
+            if key in values:
+                potential_value = values[key]
+                if potential_value is None:
+                    print 'None value for key', key
                     return 0
+                else:
+                    return int(potential_value)
+            else:
+                print 'no value for', key
+                return 0
 
-            table.detail(int(ndays),
-                         v('price', 'level', 'yes'),
-                         v('price', 'level', 'no'),
-                         v('price', 'log', 'yes'),
-                         v('price', 'log', 'no'),
-                         v('logprice', 'level', 'yes'),
-                         v('logprice', 'level', 'no'),
-                         v('logprice', 'log', 'yes'),
-                         v('logprice', 'log', 'no'))
+        report.detail(int(ndays),
+                      v('price', 'level', 'yes'),
+                      v('price', 'level', 'no'),
+                      v('price', 'log', 'yes'),
+                      v('price', 'log', 'no'),
+                      v('logprice', 'level', 'yes'),
+                      v('logprice', 'level', 'no'),
+                      v('logprice', 'log', 'yes'),
+                      v('logprice', 'log', 'no'))
+
+    def append_detail_lines(report, values):
+        '''Append body lines to report using values.'''
 
         # one line for each training period
         for ndays in control.training_periods:
-            append_line(ndays)
+            append_detail_line(report, values, ndays)
 
     def write_lines(lines):
         f = open(control.path_txt, 'w')
@@ -157,9 +159,9 @@ def create_txt(control):
 
     lines = []
     append_description(lines)
-    table = Table(lines)
-    append_header(table)
-    append_detail_lines(table, read_values())
+    report = Report(lines)
+    append_header(report)
+    append_detail_lines(report, read_values())
     write_lines(lines)
 
 
