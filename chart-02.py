@@ -78,7 +78,7 @@ class Report(object):
 
 
 def create_txt(control):
-    '''Return list of lines that are chart 02.
+    '''Return list of lines that are chart 02.txt.
     '''
     def append_description(lines):
         '''Append header lines'''
@@ -89,12 +89,12 @@ def create_txt(control):
         lines.append('Time period: 2008')
         lines.append(' ')
 
-    def read_values():
-        '''Return report dict built by make_data.'''
+    def read_data():
+        '''Return data dict built by create_data() function.'''
         f = open(control.path_data, 'rb')
-        values = pickle.load(f)
+        data = pickle.load(f)
         f.close()
-        return values
+        return data
 
     def append_header(t):
         t.header('response:',
@@ -112,25 +112,26 @@ def create_txt(control):
 
     def make_predictor(predForm, usetax):
         '''Return predictor.'''
-        prefix = 'act' if usetax == 'yes' else 'ac'
+        prefix = 'act' if usetax == 'yes' else 'ct'
         suffix = 'log' if predForm == 'log' else ''
         return prefix + suffix
 
-    def append_detail_line(report, values, ndays):
+    def append_detail_line(report, data, ndays):
         def v(response, predForm, usetax):
-            '''Return int or 0, the value in the report'''
+            '''Return int or 0, the value in the report.
+            '''
             key = (response,
                    make_predictor(predForm, usetax),
                    ndays)
-            if key in values:
-                potential_value = values[key]
+            if key in data:
+                potential_value = data[key]
                 if potential_value is None:
-                    print 'None value for key', key
+                    print 'None data for key', key
                     return 0
                 else:
                     return int(potential_value)
             else:
-                print 'no value for', key
+                print 'no data for', key
                 return 0
 
         report.detail(int(ndays),
@@ -161,21 +162,28 @@ def create_txt(control):
     append_description(lines)
     report = Report(lines)
     append_header(report)
-    append_detail_lines(report, read_values())
+    data = read_data()
+    if control.debugging:
+        # find keys with value
+        print 'data with values'
+        for key, val in data.iteritems():
+            if val is not None:
+                print 'non-None data', key, val
+    append_detail_lines(report, data)
     write_lines(lines)
 
 
 def create_data(control):
     '''Write data file (in pickle format) to working directory.
 
-    The data is a table
+    The data is a dict
     key =(response, predictor, training_days)
     value = np.array with median values from each fold
     '''
     def make_file_path(response, predictor, training_days, control):
         '''Return string containing file name.
         '''
-        cell_file_name = '%s-%s-%s-%s-%s.pickle' % (control.model,
+        cell_file_name = '%s-%s-%s-%s-%s.cvcell' % (control.model,
                                                     response,
                                                     predictor,
                                                     control.year,
@@ -197,7 +205,7 @@ def create_data(control):
         else:
             return Maybe.NoValue()
 
-    table = {}
+    data = {}
 
     # create table containing results from each cross validation
     for response in control.responses:
@@ -212,21 +220,22 @@ def create_data(control):
                     medians = make_value(file_path)
                     if medians.has_value:
                         median_of_medians = np.median(medians.value)
-                        table[key] = median_of_medians
+                        data[key] = median_of_medians
                     else:
                         print 'no value for', file_path
-                        table[key] = None
+                        data[key] = None
                 else:
                     print 'no file for', response, predictor, training_period
-                    table[key] = None
+                    raise RuntimeError('missing file: ' + file_path)
 
-    # write the table
-    print 'table'
-    for k, v in table.iteritems():
+    # write the data
+    print 'data'
+    for k, v in data.iteritems():
         print k, v
 
+    pdb.set_trace()
     f = open(control.path_data, 'wb')
-    pickle.dump(table, f)
+    pickle.dump(data, f)
     f.close()
 
 
