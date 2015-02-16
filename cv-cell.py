@@ -78,6 +78,13 @@ class Control(object):
         # eliminate null is input column sale.python_date
         self.debugging_sale_python_date = False
 
+    def __str__(self):
+        pdb.set_trace()
+        s = ''
+        for k, v in self.__dict__.iteritems():
+            s = s + ('control.%s = %s\n' % (k, v))
+        return s
+
 
 def relevant_test(df, test_years):
     ''' Return DataFrame containing just the relevant test transactions.'''
@@ -90,7 +97,6 @@ def relevant_test(df, test_years):
 
 def relevant_train(df, the_sale_datetime, training_days):
     '''Return rows within training_days of the sale date.'''
-    pdb.set_trace()
     days_before = the_sale_datetime - df['sale.datetime']
     in_training = days_before <= training_days
     return df[in_training]
@@ -113,7 +119,7 @@ def get_transaction_dates(df):
     return df['sale.python_date']
 
 
-def select_testing(sale_date, df):
+def select_testingOLD(sale_date, df):
     '''Return DataFrame with only testing transactions.
     '''
     transaction_dates = get_transaction_dates(df)
@@ -122,7 +128,7 @@ def select_testing(sale_date, df):
     return testing
 
 
-def select_training(sale_date, df, training_days):
+def select_trainingOLD(sale_date, df, training_days):
     '''Return DataFrame containin only training transactions.
     '''
     first_date = sale_date - datetime.timedelta(int(training_days))
@@ -131,33 +137,6 @@ def select_training(sale_date, df, training_days):
                                  transaction_dates >= first_date)
     training = df[in_training]
     return training
-
-
-def actuals_estimates(sale_date, fold_test, fold_train, control):
-    '''Return actuals and estimates for all test transactions with sale date.
-
-    Both actuals and estimates are NOT in the log domain.
-    '''
-    # select relevant transactions
-    testing = select_testing(sale_date, fold_test)
-    training = select_training(sale_date, fold_train, control.training_days)
-
-    # convert relevant transactions to x,y matrices
-    train_x, train_y, test_x = xy(sale_date, training, testing, control)
-
-    # dispatch on model
-    if control.model == 'ols':
-        m = linear_model.LinearRegression(fit_intercept=True,
-                                          normalize=False,
-                                          copy_X=True)
-        m.fit(train_x, train_y)
-        estimates = m.predict(test_x)
-    else:
-        raise NotImplemented('model: ' + control.model)
-
-    actuals = testing['SALE.AMOUNT']
-    e = estimates if control.response == 'price' else np.exp(estimates)
-    return actuals, e
 
 
 def response(df, response_name):
@@ -213,27 +192,174 @@ def maybe_add_age(df_list, from_to_list, predictor_names, test_date):
         predictor_names.append(age2_name)
 
 
-def xy(test_date, training, testing, control):
-    '''Return train_x. train_y, test_x.'''
-    predictor_names = features(control.predictors).keys()
+def transform_to_log(df_list, transformation):
+    '''Mutate each data frame by converting to log domain.'''
+    def transform_one(df):
+        for feature, how in transformation.iteritems():
+            if how == 'none':
+                pass
+            elif how == 'log':
+                new_value = np.log(df[feature])
+                del df[feature]  # avoid a warning in the assignment below
+                df[feature] = new_value
+            elif how == 'log1p':
+                new_value = np.log1p(df[feature])
+                del df[feature]  # avoid a warning in the assignment below
+                df[feature] = new_value
+            else:
+                raise ValueError('feature, how: ' + feature + ',' + how)
 
-    maybe_add_age([training, testing],
+    for df in df_list:
+        transform_one(df)
+
+
+def make_xy(test_date, test, train, control):
+    '''Return test_x, train_x, train_y.'''
+    transformation = features(control.predictors)
+    predictor_names = transformation.keys()
+
+    maybe_add_age([test, train],
                   [['YEAR.BUILT', 'age'],
                    ['EFFECTIVE.YEAR.BUILT', 'effective.age']],
                   predictor_names,
                   test_date)
+    if control.predictors[-3:] == 'log':
+        # NOTE: don't introduce new predictor names
+        transform_to_log([test, train], transformation)
 
-    train_x = predictors(training, predictor_names)
-    test_x = predictors(testing, predictor_names)
-    train_y = response(training, control.response)
+    train_x = predictors(train, predictor_names)
+    test_x = predictors(test, predictor_names)
+    train_y = response(train, control.response)
 
-    return train_x, train_y, test_x
+    return test_x, train_x, train_y
 
 
-def fit_local_models(df, control):
-    '''Return CvResult instance for the cell specified by control.command_line.
+def make_relevant_test(sale_date, df, control):
+    '''Return DataFrame containing only test transactions relevant to sale_date.
     '''
+    transaction_dates = get_transaction_dates(df)
+    test_indices = np.where(transaction_dates == sale_date)
+    relevant = df.iloc[test_indices]
+    return relevant
 
+
+def make_relevant_train(sale_date, df, control):
+    '''Return DataFrame containing only train transactions relevant to
+    sale_date.
+    '''
+    training_days = int(control.training_days)
+    first_date = sale_date - datetime.timedelta(training_days)
+    transaction_dates = get_transaction_dates(df)
+    in_training = np.logical_and(transaction_dates < sale_date,
+                                 transaction_dates >= first_date)
+    relevant = df[in_training]
+    return relevant
+
+
+def make_relevant(sale_date, test, train, control):
+    '''
+    Return test, train for transactions relevant to sale_date and training days.
+    '''
+    relevant_test = make_relevant_test(sale_date, test, control)
+    relevant_train = make_relevant_train(sale_date, train, control)
+    return relevant_test, relevant_train
+
+
+def fit_model(train_x, train_y, control):
+    '''Return fitted model instance.
+
+    Pass control structure, because may need hyperparameters.
+    '''
+    if control.model == 'ols':
+        m = linear_model.LinearRegression(fit_intercept=True,
+                                          normalize=False,
+                                          copy_X=True)
+        fitted = m.fit(train_x, train_y)
+        if False:
+            print 'fitted values'
+            print 'coefficients', fitted.coef_
+            print 'intercept', fitted.intercept_
+        return fitted
+    else:
+        raise NotImplemented('model: ' + control.model)
+
+
+def predict_model(test_x, fitted, control):
+    '''Return estimes'''
+    estimates = fitted.predict(test_x)
+    return estimates
+
+
+def get_actuals(df, control):
+    '''Return actual sale prices'''
+    actuals = df['SALE.AMOUNT']
+    return actuals
+
+
+def make_fold_result_for_sale_date(sale_date, test, train, control):
+    '''Return actuals, estimates for all test transactions on sale date.
+    '''
+    test_relevant, train_relevant = make_relevant(sale_date,
+                                                  test,
+                                                  train,
+                                                  control)
+    # convert DataFrames to x matrices and y vectors
+    test_x, train_x, train_y = make_xy(sale_date,
+                                       test_relevant,
+                                       train_relevant,
+                                       control)
+    fitted = fit_model(train_x, train_y, control)
+    estimates = predict_model(test_x, fitted, control)
+    actuals = get_actuals(test_relevant, control)
+    return actuals, estimates
+
+
+def make_sorted_test_sale_dates(df, control):
+    '''Return list of sorted sale dates in test years.'''
+    if control.test_years == '2008':
+        first_date = datetime.date(2008, 1, 1)
+        last_date = datetime.date(2008, 12, 31)
+    else:
+        raise NotImplemented('control.test_years: ' + control.test_years)
+    dates = df['sale.python_date']
+    in_test_years = np.logical_and(dates >= first_date,
+                                   dates <= last_date)
+    test_year_dates = dates[in_test_years]
+    unique = test_year_dates.unique()
+    ordered = np.sort(unique)
+    return ordered
+
+
+def make_fold_result(fold_number, test, train, control):
+    '''Return FoldResult instance from predicting all test transactions.
+
+    For each test transaction,
+    1. Build model with all the training data.
+    2. Predict value for the test transaction.
+    '''
+    sorted_sale_dates = make_sorted_test_sale_dates(test, control)
+    fold_result = FoldResult()
+    for test_sale_date in sorted_sale_dates:
+        actuals, estimates = make_fold_result_for_sale_date(test_sale_date,
+                                                            test,
+                                                            train,
+                                                            control)
+        fold_result.extend(actuals, estimates)
+        print \
+            control.command_line, \
+            fold_number, \
+            test_sale_date, \
+            len(actuals)
+    return fold_result
+
+
+def make_cv_result(df, control):
+    '''
+    Return CvResult instance containing results from 10-fold cv.
+
+    Break DataFrame df into folds.
+    Determine cross-validation error for each fold.
+    '''
     # create iterator across fold indices
     kf = cross_validation.KFold(df.shape[0],
                                 n_folds=control.n_folds,
@@ -250,29 +376,11 @@ def fit_local_models(df, control):
         fold_train = df.iloc[train_indices]
         fold_test = df.iloc[test_indices]
 
-        fold_test_relevant = relevant_test(fold_test, control.test_years)
-
-        # iterate over the unique sale dates in the test fold
-        # sort the dates, so that the print out is easier to follow visually
-        dates = fold_test_relevant['sale.python_date']
-        unique_sale_dates = dates.unique()
-        unique_sale_dates_sorted = np.sort(unique_sale_dates)
-
-        # create the fold results by analyzing each date
-        foldresult = FoldResult()
-        for this_sale_date in unique_sale_dates_sorted.flat:
-            actuals, estimates = actuals_estimates(this_sale_date,
-                                                   fold_test_relevant,
-                                                   fold_train,
-                                                   control)
-            foldresult.extend(actuals, estimates)
-            print \
-                control.command_line, \
-                fold_number, \
-                this_sale_date, \
-                len(estimates)
-
-        cvresult.save_FoldResult(foldresult)
+        fold_result = make_fold_result(fold_number,
+                                       fold_test,
+                                       fold_train,
+                                       control)
+        cvresult.save_FoldResult(fold_result)
 
     return cvresult
 
@@ -298,8 +406,7 @@ def main():
             print dates
             raise ValueError('a sale.python_date is null')
 
-    cv_result = fit_local_models(df=df,
-                                 control=control)
+    cv_result = make_cv_result(df=df, control=control)
 
     # write cross validation result
     f = open(control.path_out, 'wb')
