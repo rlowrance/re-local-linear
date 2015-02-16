@@ -233,7 +233,6 @@ def create_data(control):
     for k, v in data.iteritems():
         print k, v
 
-    pdb.set_trace()
     f = open(control.path_data, 'wb')
     pickle.dump(data, f)
     f.close()
