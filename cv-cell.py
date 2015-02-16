@@ -136,7 +136,7 @@ def select_training(sale_date, df, training_days):
 def actuals_estimates(sale_date, fold_test, fold_train, control):
     '''Return actuals and estimates for all test transactions with sale date.
 
-    Return two np arrays.
+    Both actuals and estimates are NOT in the log domain.
     '''
     # select relevant transactions
     testing = select_testing(sale_date, fold_test)
@@ -156,7 +156,8 @@ def actuals_estimates(sale_date, fold_test, fold_train, control):
         raise NotImplemented('model: ' + control.model)
 
     actuals = testing['SALE.AMOUNT']
-    return actuals, estimates
+    e = estimates if control.response == 'price' else np.exp(estimates)
+    return actuals, e
 
 
 def response(df, response_name):
