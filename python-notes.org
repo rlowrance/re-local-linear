@@ -181,6 +181,10 @@ different types. Has optional row labels (index) and optional column labels.
     df['new colunn'] = df['a'][:2]        # conform to index
     df.insert(position, 'new column', new_value)  # insert at specified position
 
+    # replace a column (avoiding a runtime warning)
+    del df['existing column']
+    df['existing column'] = value
+
     # indexing and selection
     df[col]         # select column by name, return Series
     df[ ['a','b'] ] # selecting multiple columns, return DataFrame
