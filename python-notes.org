@@ -178,7 +178,7 @@ different types. Has optional row labels (index) and optional column labels.
     # inserting new columns, by default at end of columns
     df['new column'] = df['a'] + df['b']  # align indices
     df['new column'] = scalar_value       # propogate to conform to index
-    df['new colunn'] = df['a'][:2]        # conform to index
+    df['new colunn'] = df['a'][:3]        # conform to index
     df.insert(position, 'new column', new_value)  # insert at specified position
 
     # replace a column (avoiding a runtime warning)
@@ -293,7 +293,7 @@ Ranges
 
 Methods
 
-    list.append(x)
+    list.append(x)  # -> None
     list.extend(L)  #append all items in list L
     list.insert(i, x)  # shove others down
     list.remove(x)     # remove item with value x
@@ -361,7 +361,7 @@ Basics
 *** basic operations
     len(d)
     d[key]  # access
-    get(key, default)  # return default if key not in d
+    get(key, default)  # dp[key] if k in d else default
     d[key] = value
     clear() # remove all items
     del d[key]
