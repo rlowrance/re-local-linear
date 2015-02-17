@@ -309,7 +309,13 @@ def make_fold_result_for_sale_date(sale_date, test, train, control):
                                        train_relevant,
                                        control)
     fitted = fit_model(train_x, train_y, control)
-    estimates = predict_model(test_x, fitted, control)
+    estimates_model_units = predict_model(test_x, fitted, control)
+    if control.response == 'price':
+        estimates = estimates_model_units
+    elif control.response == 'logprice':
+        estimates = np.exp(estimates_model_units)
+    else:
+        raise ValueError('control.reponse: ' + control.response)
     actuals = get_actuals(test_relevant, control)
     return actuals, estimates
 
