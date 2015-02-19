@@ -1,7 +1,8 @@
 # create files
 # WORKING/chart-02.makefile
 # WORKING/chart-02.data
-# WORKING/chart-02.txt     containing chart median losses across fold
+# WORKING/chart-02.txt mrmse -> median of root median squared errors
+# WORKING/chart-02.txt mmae ->  median of median absolute errors
 
 # import built-ins and libraries
 import sys
@@ -17,8 +18,9 @@ import Maybe
 
 
 def print_help():
-    print 'python chart-02.py SUFFIX'
+    print 'python chart-02.py SUFFIX [ERROR]'
     print 'where SUFFIX in {"makefile", "data", "txt"}'
+    print 'and   ERROR  in {"rmse", "mmae"}'
 
 
 class Control(object):
@@ -35,16 +37,24 @@ class Control(object):
         self.dir_src = src
 
         # handle command line arguments
-        if len(arguments) != 2:
+        if len(arguments) not in (2, 3):
             print print_help()
             raise RuntimeError('missing command line argument')
 
         self.suffix = arguments[1]
 
+        if len(arguments) == 3:
+            self.error = arguments[3]
+            if self.error == 'mrmse' or self.error == 'mae':
+                pass
+            else:
+                print print_help()
+                raise RuntimeError('bad ERROR: ' + self.error)
+            self.path_data = working + self.me + '.data'
+
         self.path_out_log = log + self.me + '.log'
+        self.path_out_data = working + self.me + '.data'
         self.path_dir_cells = cells
-        self.path_data = working + self.me + '.data'
-        self.path_txt = working + self.me + '.txt'
         self.path_makefile = src + self.me + '.makefile'
 
         # components of cell names
@@ -57,6 +67,13 @@ class Control(object):
 
         self.testing = False
         self.debugging = False
+
+    def __str__(self):
+        s = ''
+        for kv in sorted(self.__dict__.items()):
+            k, v = kv
+            s = s + ('control.%s = %s\n' % (k, v))
+        return s
 
 
 class Report(object):
@@ -82,7 +99,10 @@ def create_txt(control):
     '''
     def append_description(lines):
         '''Append header lines'''
-        lines.append('Median of Root Median Squared Errors')
+        if control.error == 'mrmse':
+            lines.append('Median of Root Median Squared Errors')
+        else:
+            lines.append('Median of Absolute Errors')
         lines.append('From 10-fold Cross Validation')
         lines.append(' ')
         lines.append('Model: OLS')
@@ -158,17 +178,12 @@ def create_txt(control):
             f.write('\n')
         f.close()
 
+    pdb.set_trace()
     lines = []
     append_description(lines)
     report = Report(lines)
     append_header(report)
     data = read_data()
-    if control.debugging:
-        # find keys with value
-        print 'data with values'
-        for key, val in data.iteritems():
-            if val is not None:
-                print 'non-None data', key, val
     append_detail_lines(report, data)
     write_lines(lines)
 
@@ -177,8 +192,12 @@ def create_data(control):
     '''Write data file (in pickle format) to working directory.
 
     The data is a dict
-    key =(response, predictor, training_days)
-    value = np.array with median values from each fold
+    key = ERROR (from command line) (one of mrmse mae)
+    value = a dicionary with the error
+     key =(response, predictor, training_days)
+     value = np.array with median errors from each fold, either
+      median of root median squared error; or
+      median of absolute error
     '''
     def make_file_path(response, predictor, training_days, control):
         '''Return string containing file name.
@@ -190,13 +209,14 @@ def create_data(control):
                                                     training_days)
         return control.dir_cells + cell_file_name
 
-    def make_value(file_path):
+    def make_valueOLD(file_path):
         '''Return Maybe(root_median_squared values from file).'''
         f = open(file_path, 'rb')
         (cv_result, cv_cell_control) = pickle.load(f)
         f.close()
 
         # process the cv_result
+        pdb.set_trace()
         vector = cv_result.median_errors_ignore_nans()
         if vector.has_value:
             median_errors = vector.value
@@ -205,7 +225,34 @@ def create_data(control):
         else:
             return Maybe.NoValue()
 
-    data = {}
+    def get_cv_result(file_path):
+        '''Return CvResult instance.'''
+        f = open(file_path, 'rb')
+        (cv_result, cv_cell_control) = pickle.load(f)
+        f.close()
+        return cv_result
+
+    def make_fold_rmse(cv_result):
+        '''Return Maybe(vector of sqrt of median squared errors from folds).'''
+        pdb.set_trace()
+        result = cv_result.median_of_root_median_squared_errors()
+        return result
+
+    def make_fold_ae(cv_result):
+        '''Return Maybe(vector of absolute errors from folds).'''
+        pdb.set_trace()
+        vector = cv_result.absolute_errors_ignore_nans()
+        if vector.has_value:
+            median_errors = vector.value
+            result = np.sqrt(median_errors * median_errors)
+            return Maybe.Maybe(result)
+        else:
+            return Maybe.NoValue()
+
+    mean_meanAE = {}
+    mean_rMeanSE = {}
+    median_rMedianSE = {}
+    median_medianAE = {}
 
     # create table containing results from each cross validation
     for response in control.responses:
@@ -217,23 +264,41 @@ def create_data(control):
                                            control)
                 key = (response, predictor, training_period)
                 if os.path.isfile(file_path):
-                    medians = make_value(file_path)
-                    if medians.has_value:
-                        median_of_medians = np.median(medians.value)
-                        data[key] = median_of_medians
-                    else:
-                        print 'no value for', file_path
-                        data[key] = None
+                    cv_result = get_cv_result(file_path)
+
+                    def save(d, method):
+                        '''Save cv_result.method() into d[key].'''
+                        value = method()
+                        if value.has_value:
+                            d[key] = value.value
+                        else:
+                            print 'no value for', key
+                            d[key] = None
+
+                    print file_path
+                    save(mean_meanAE,
+                         cv_result.mean_of_mean_absolute_errors)
+                    save(mean_rMeanSE,
+                         cv_result.mean_of_root_mean_squared_errors)
+                    save(median_rMedianSE,
+                         cv_result.median_of_root_median_squared_errors)
+                    save(median_medianAE,
+                         cv_result.median_of_median_absolute_errors)
                 else:
                     print 'no file for', response, predictor, training_period
                     raise RuntimeError('missing file: ' + file_path)
 
     # write the data
+    data = {'mean_meanAE': mean_meanAE,
+            'mean_rMeanSE': mean_rMeanSE,
+            'median_rMedianSE': median_rMedianSE,
+            'median_medianAE': median_medianAE}
     print 'data'
     for k, v in data.iteritems():
         print k, v
 
-    f = open(control.path_data, 'wb')
+    pdb.set_trace()
+    f = open(control.path_out_data, 'wb')
     pickle.dump(data, f)
     f.close()
 
@@ -304,10 +369,7 @@ def main():
 
     control = Control(sys.argv)
     sys.stdout = Logger(logfile_path=control.path_out_log)
-
-    # log the control variables
-    for k, v in control.__dict__.iteritems():
-        print 'control', k, v
+    print control
 
     if control.suffix == 'makefile':
         create_makefile(control)
@@ -319,13 +381,10 @@ def main():
         print_help()
         raise RuntimeError('bad command SUFFIX')
 
-    # log the control variables
-    for k, v in control.__dict__.iteritems():
-        print 'control', k, v
-
+    # clean up
+    print control
     if control.testing:
         print 'DISCARD OUTPUT: TESTING'
-
     print 'done'
 
 if __name__ == '__main__':
