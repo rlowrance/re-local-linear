@@ -209,45 +209,12 @@ def create_data(control):
                                                     training_days)
         return control.dir_cells + cell_file_name
 
-    def make_valueOLD(file_path):
-        '''Return Maybe(root_median_squared values from file).'''
-        f = open(file_path, 'rb')
-        (cv_result, cv_cell_control) = pickle.load(f)
-        f.close()
-
-        # process the cv_result
-        pdb.set_trace()
-        vector = cv_result.median_errors_ignore_nans()
-        if vector.has_value:
-            median_errors = vector.value
-            root_median_squared_errors = np.sqrt(median_errors * median_errors)
-            return Maybe.Maybe(root_median_squared_errors)
-        else:
-            return Maybe.NoValue()
-
     def get_cv_result(file_path):
         '''Return CvResult instance.'''
         f = open(file_path, 'rb')
         (cv_result, cv_cell_control) = pickle.load(f)
         f.close()
         return cv_result
-
-    def make_fold_rmse(cv_result):
-        '''Return Maybe(vector of sqrt of median squared errors from folds).'''
-        pdb.set_trace()
-        result = cv_result.median_of_root_median_squared_errors()
-        return result
-
-    def make_fold_ae(cv_result):
-        '''Return Maybe(vector of absolute errors from folds).'''
-        pdb.set_trace()
-        vector = cv_result.absolute_errors_ignore_nans()
-        if vector.has_value:
-            median_errors = vector.value
-            result = np.sqrt(median_errors * median_errors)
-            return Maybe.Maybe(result)
-        else:
-            return Maybe.NoValue()
 
     mean_meanAE = {}
     mean_rMeanSE = {}
@@ -297,7 +264,6 @@ def create_data(control):
     for k, v in data.iteritems():
         print k, v
 
-    pdb.set_trace()
     f = open(control.path_out_data, 'wb')
     pickle.dump(data, f)
     f.close()
