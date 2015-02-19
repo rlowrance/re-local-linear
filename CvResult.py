@@ -17,7 +17,6 @@ class CvResult(object):
 
     def __init__(self):
         self.fold_results = {}
-        self.verbose = False
 
     def save_FoldResult(self, fr):
         self.fold_results[len(self.fold_results)] = fr
@@ -36,9 +35,10 @@ class CvResult(object):
         for index, fr in self.fold_results.iteritems():
             maybe_fold_errors = fr.maybe_errors()
             if maybe_fold_errors.has_value:
-                fold[index] = summarize_fold_accuracy(maybe_fold_errors.value)
-        if self.verbose:
-            print 'step 1 fold', fold
+                # squash large value that will fail on error * error
+                errors = maybe_fold_errors.value
+                errors[np.abs(errors) > 1e100] = 1e100
+                fold[index] = summarize_fold_accuracy(errors)
 
         # now fold[fold_index] is a number, possible NaN, summarizing fold
         # estimation accuracy
@@ -48,8 +48,6 @@ class CvResult(object):
             return Maybe.NoValue()
         else:
             known_fold_values = fold[~np.isnan(fold)]  # drop NaNs
-            if self.verbose:
-                print 'step 2 known fold values', known_fold_values
             return Maybe.Maybe(reduce_fold_summary_to_number(known_fold_values))
 
     def mean_of_mean_absolute_errors(self):
@@ -57,7 +55,9 @@ class CvResult(object):
                                         errors.mean_error)
 
     def mean_of_root_mean_squared_errors(self):
-        return self._reduce_fold_errors(errors.mean_squared_error,
+        # squash values that will overflow on errors * errors
+
+        return self._reduce_fold_errors(errors.root_mean_squared_error,
                                         errors.mean_error)
 
     def median_of_root_median_squared_errors(self):
@@ -92,9 +92,12 @@ if __name__ == '__main__':
                                    [-10, 20])
             fr3 = make_fold_result([1, np.nan],
                                    [np.nan, 2])
+            fr4 = make_fold_result([0],
+                                   [1e200])
 
             self.cv1 = make_cv_result(fr1, fr2, fr3)
             self.cv2 = make_cv_result(fr3)
+            self.cv3 = make_cv_result(fr4)
 
         def test_mean_of_mean_absolute_errors_cv1(self):
             fr1 = (9 + 18 + 27) / 3.0
@@ -110,16 +113,21 @@ if __name__ == '__main__':
             pass
 
         def test_mean_of_root_mean_squared_errors_cv1(self):
-            fr1 = (9 + 18 + 27) / 3.0
-            fr2 = (90 + 180) / 2.0
+            fr1 = math.sqrt((9 * 9 + 18 * 18 + 27 * 27) / 3.0)
+            fr2 = math.sqrt((90 * 90 + 180 * 180) / 2.0)
             expected = (fr1 + fr2) / 2.0
-            cv = self.cv1.mean_of_mean_absolute_errors()
+            cv = self.cv1.mean_of_root_mean_squared_errors()
             self.assertAlmostEqual(cv.value, expected)
             pass
 
         def test_mean_of_root_mean_squared_errors_cv2(self):
-            cv = self.cv2.mean_of_mean_absolute_errors()
+            cv = self.cv2.mean_of_root_mean_squared_errors()
             self.assertTrue(not cv.has_value)
+            pass
+
+        def test_mean_of_root_mean_squared_errors_cv3(self):
+            cv = self.cv3.mean_of_root_mean_squared_errors()
+            self.assertTrue(cv.has_value)
             pass
 
         def test_median_of_median_absolute_errors_cv1(self):
