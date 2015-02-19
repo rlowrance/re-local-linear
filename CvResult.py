@@ -67,6 +67,10 @@ class CvResult(object):
         return self._reduce_fold_errors(errors.median_absolute_error,
                                         errors.median_error)
 
+    def median_of_root_median_squared_errors(self):
+        return self._reduce_fold_errors(errors.root_median_squared_error,
+                                        errors.median_error)
+
 
 if __name__ == '__main__':
     import unittest
@@ -154,6 +158,17 @@ if __name__ == '__main__':
 
         def test_median_of_absolute_median_errors_cv2(self):
             cv = self.cv2.median_of_absolute_median_errors()
+            self.assertTrue(not cv.has_value)
+
+        def test_median_of_root_median_squared_errors_cv1(self):
+            f1 = math.sqrt(18 * 18)
+            f2 = math.sqrt(.5 * (90 * 90 + 180 * 180))
+            expected = .5 * (f1 + f2)
+            cv = self.cv1.median_of_root_median_squared_errors()
+            self.assertAlmostEqual(cv.value, expected)
+
+        def test_median_of_root_median_squared_errors_cv2(self):
+            cv = self.cv2.median_of_root_median_squared_errors()
             self.assertTrue(not cv.has_value)
 
     unittest.main()
