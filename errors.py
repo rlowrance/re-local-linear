@@ -32,6 +32,10 @@ def root_mean_squared_error(errors):
     return math.sqrt(np.mean(errors * errors))
 
 
+def root_median_squared_error(errors):
+    return math.sqrt(np.median(errors * errors))
+
+
 if __name__ == '__main__':
     import unittest
 
@@ -65,5 +69,11 @@ if __name__ == '__main__':
             v2 = math.sqrt((16 + 1 + 9 + 4) / 4.0)
             self.assertAlmostEqual(v1, root_mean_squared_error(self.e1))
             self.assertAlmostEqual(v2, root_mean_squared_error(self.e2))
+
+        def test_root_median_squared_error(self):
+            v1 = math.sqrt(4)
+            v2 = math.sqrt(.5 * (4 + 9))
+            self.assertAlmostEqual(v1, root_median_squared_error(self.e1))
+            self.assertAlmostEqual(v2, root_median_squared_error(self.e2))
 
     unittest.main()
