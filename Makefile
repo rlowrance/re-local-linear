@@ -39,7 +39,7 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
-#ALL += $(WORKING)/chart-02-median-root-median-squared-errors.txt
+ALL += $(WORKING)/chart-02-median-root-median-squared-errors.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -58,10 +58,8 @@ $(CVCELL)/%.cvcell:
 # CHART 01
 include chart-01.makefile
 
-chart-01.pdf: $(WORKING)/chart-01.pdf
-
 # CHART 02
-#include chart-02.makefile
+include chart-02.makefile
 #$(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
 #	$(PYTHON) chart-02.py
 #	

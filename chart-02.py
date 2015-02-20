@@ -10,22 +10,24 @@
 import sys
 import pdb
 import cPickle as pickle
-import numpy as np
 import os.path
 
 # import my stuff
 from directory import directory
 from Logger import Logger
+from Record import Record
 
 
 def print_help():
     print 'python chart-02.py SUFFIX [ERROR]'
     print 'where SUFFIX in {"makefile", "data", "txt"}'
-    print 'and   ERROR  in {"rmse", "mmae"}'
+    print 'and   ERROR  in {"mean-root-mean-squared-errors",'
+    print '                 "median-root-median-squared-errors"}'
 
 
-class Control(object):
+class Control(Record):
     def __init__(self, arguments):
+        Record.__init__(self, 'control')
         self.me = 'chart-02'
 
         working = directory('working')
@@ -60,6 +62,8 @@ class Control(object):
         self.path_out_data = working + self.me + '.data'
         self.path_dir_cells = cells
         self.path_out_makefile = src + self.me + '.makefile'
+        self.txt_files = ['mean-root-mean-squared-errors',
+                          'median-root-median-squared-errors']
 
         # components of cell names
         self.model = 'ols'
@@ -305,12 +309,15 @@ def create_makefile(control):
         lines.append('%s-cells = %s' % (control.me,
                                         ' '.join(make_file_names())))
 
-        lines.append('%s%s.txt: %s%s.data %s.py' % (control.dir_working,
-                                                    control.me,
-                                                    control.dir_working,
-                                                    control.me,
-                                                    control.me))
-        lines.append('\t$(PYTHON) %s.py txt' % control.me)
+        for txt_file in control.txt_files:
+            lines.append('%s%s-%s.txt: %s%s.data %s.py' % (control.dir_working,
+                                                           control.me,
+                                                           txt_file,
+                                                           control.dir_working,
+                                                           control.me,
+                                                           control.me))
+            lines.append('\t$(PYTHON) %s.py txt %s' % (control.me,
+                                                       txt_file))
 
         lines.append('%s%s.data: $(%s-cells) %s.py' % (control.dir_working,
                                                        control.me,
@@ -324,7 +331,7 @@ def create_makefile(control):
         return lines
 
     lines = make_lines()
-    f = open(control.path_makefile, 'w')
+    f = open(control.path_out_makefile, 'w')
     for line in lines:
         f.write(line)
         f.write('\n')
