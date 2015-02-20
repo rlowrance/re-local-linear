@@ -13,6 +13,7 @@ import cPickle as pickle
 # import my stuff
 from directory import directory
 from Logger import Logger
+from Record import Record
 
 
 def print_help():
@@ -20,8 +21,10 @@ def print_help():
     print 'where SUFFIX in {"makefile", "data", "txt"}'
 
 
-class Control(object):
+class Control(Record):
     def __init__(self, arguments):
+        Record.__init__(self, 'control')
+
         self.me = 'chart-03'
 
         working = directory('working')
