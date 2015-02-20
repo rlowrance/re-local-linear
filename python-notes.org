@@ -20,6 +20,9 @@
     np.linspace(start, stop, num)
     np.linspace(start, stop, num, endpoint)
     np.logspace(start, stop, [num, [endpoint]])
+*** create of random arrays
+    np.random.rand(d0, d1, ...)   # sample form uniform distribution over [0,1]
+    np.random.randn(d0, d1, ...)  # sample from standard normal distribution
 ** array attributes
    a.shape  # tuple of dimensions
    a.ndim   # number of dimensions
