@@ -50,22 +50,10 @@ class CvResult(object):
             known_fold_values = fold[~np.isnan(fold)]  # drop NaNs
             return Maybe.Maybe(reduce_fold_summary_to_number(known_fold_values))
 
-    def mean_of_mean_absolute_errors(self):
-        return self._reduce_fold_errors(errors.mean_absolute_error,
-                                        errors.mean_error)
 
     def mean_of_root_mean_squared_errors(self):
         return self._reduce_fold_errors(errors.root_mean_squared_error,
                                         errors.mean_error)
-
-    def median_of_absolute_median_errors(self):
-        # equivalent to median of root median squared errors
-        return self._reduce_fold_errors(errors.absolute_median_error,
-                                        errors.median_error)
-
-    def median_of_median_absolute_errors(self):
-        return self._reduce_fold_errors(errors.median_absolute_error,
-                                        errors.median_error)
 
     def median_of_root_median_squared_errors(self):
         return self._reduce_fold_errors(errors.root_median_squared_error,
@@ -102,18 +90,6 @@ if __name__ == '__main__':
             self.cv2 = make_cv_result(fr3)
             self.cv3 = make_cv_result(fr4)
 
-        def test_mean_of_mean_absolute_errors_cv1(self):
-            fr1 = (9 + 18 + 27) / 3.0
-            fr2 = (90 + 180) / 2.0
-            expected = (fr1 + fr2) / 2.0
-            cv = self.cv1.mean_of_mean_absolute_errors()
-            self.assertAlmostEqual(cv.value, expected)
-            pass
-
-        def test_mean_of_mean_absolute_errors_cv2(self):
-            cv = self.cv2.mean_of_mean_absolute_errors()
-            self.assertTrue(not cv.has_value)
-            pass
 
         def test_mean_of_root_mean_squared_errors_cv1(self):
             fr1 = math.sqrt((9 * 9 + 18 * 18 + 27 * 27) / 3.0)
@@ -132,33 +108,6 @@ if __name__ == '__main__':
             cv = self.cv3.mean_of_root_mean_squared_errors()
             self.assertTrue(cv.has_value)
             pass
-
-        def test_median_of_median_absolute_errors_cv1(self):
-            f1 = 18   # mid abs error
-            f2 = .5 * (90 + 180)
-            # f3 = np.nan
-            expected = .5 * (f1 + f2)  # avg, since even number of folds
-            if False:
-                print 'f1 RMedSE', f1
-                print 'f2 RMedSE', f2
-                print 'expected median across folds', expected
-            cv = self.cv1.median_of_median_absolute_errors()
-            self.assertAlmostEqual(cv.value, expected)
-
-        def test_median_of_root_median_absolute_errors_cv2(self):
-            cv = self.cv2.median_of_median_absolute_errors()
-            self.assertTrue(not cv.has_value)
-
-        def test_median_of_absolute_median_errors_cv1(self):
-            f1 = 9
-            f2 = .5 * (-90 + 180)
-            expected = .5 * (f1 + f2)
-            cv = self.cv1.median_of_absolute_median_errors()
-            self.assertAlmostEqual(cv.value, expected)
-
-        def test_median_of_absolute_median_errors_cv2(self):
-            cv = self.cv2.median_of_absolute_median_errors()
-            self.assertTrue(not cv.has_value)
 
         def test_median_of_root_median_squared_errors_cv1(self):
             f1 = math.sqrt(18 * 18)
