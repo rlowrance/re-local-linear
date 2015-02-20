@@ -1,8 +1,10 @@
-# create files
+# create files (selective on how invoked)
 # WORKING/chart-02.makefile
 # WORKING/chart-02.data
-# WORKING/chart-02.txt mrmse -> median of root median squared errors
-# WORKING/chart-02.txt mmae ->  median of median absolute errors
+# WORKING/chart-02.txt-mean-mae.txt
+# WORKING/chart-02.txt-mean-rmeanse.txt
+# WORKING/chart-02.txt-median-rmedianse.txt
+# WORKING/chart-02.txt-median-medianae.txt
 
 # import built-ins and libraries
 import sys
@@ -14,7 +16,6 @@ import os.path
 # import my stuff
 from directory import directory
 from Logger import Logger
-import Maybe
 
 
 def print_help():
@@ -44,18 +45,21 @@ class Control(object):
         self.suffix = arguments[1]
 
         if len(arguments) == 3:
-            self.error = arguments[3]
-            if self.error == 'mrmse' or self.error == 'mae':
-                pass
+            self.error = arguments[2]
+            if self.error == 'mean-root-mean-squared-errors':
+                self.header = 'Mean of Root Mean Squared Errors'
+            elif self.error == 'median-root-median-squared-errors':
+                self.header = 'Median of Root Median Squared Errors'
             else:
                 print print_help()
                 raise RuntimeError('bad ERROR: ' + self.error)
-            self.path_data = working + self.me + '.data'
+            self.path_out_txt = working + self.me + '-' + self.error + '.txt'
 
-        self.path_out_log = log + self.me + '.log'
+        self.path_out_log = \
+            log + self.me + '-' + '-'.join(arguments[1:]) + '.log'
         self.path_out_data = working + self.me + '.data'
         self.path_dir_cells = cells
-        self.path_makefile = src + self.me + '.makefile'
+        self.path_out_makefile = src + self.me + '.makefile'
 
         # components of cell names
         self.model = 'ols'
@@ -88,9 +92,22 @@ class Report(object):
         s = self.format_header.format(c0, c1, c2, c3, c4, c5, c6, c7, c8)
         self.lines.append(s)
 
-    def detail(self, ndays, c1, c2, c3, c4, c5, c6, c7, c8):
-        print ndays, c1, c2, c3, c4, c5, c6, c7, c8
-        s = self.format_detail.format(ndays, c1, c2, c3, c4, c5, c6, c7, c8)
+    def detail(self, ndays, *clist):
+        # replace large column values with all 9's
+        print ndays, clist
+        large_value = 99999999
+        capped = [x if x <= large_value else large_value
+                  for x in clist]
+        s = self.format_detail.format(ndays,
+                                      capped[0],
+                                      capped[1],
+                                      capped[2],
+                                      capped[3],
+                                      capped[4],
+                                      capped[5],
+                                      capped[6],
+                                      capped[7])
+        # s = self.format_detail.format(ndays, c1, c2, c3, c4, c5, c6, c7, c8)
         self.lines.append(s)
 
 
@@ -99,10 +116,7 @@ def create_txt(control):
     '''
     def append_description(lines):
         '''Append header lines'''
-        if control.error == 'mrmse':
-            lines.append('Median of Root Median Squared Errors')
-        else:
-            lines.append('Median of Absolute Errors')
+        lines.append(control.header)
         lines.append('From 10-fold Cross Validation')
         lines.append(' ')
         lines.append('Model: OLS')
@@ -110,11 +124,12 @@ def create_txt(control):
         lines.append(' ')
 
     def read_data():
-        '''Return data dict built by create_data() function.'''
-        f = open(control.path_data, 'rb')
+        '''Return correct data dict built by create_data() function.'''
+        f = open(control.path_out_data, 'rb')
         data = pickle.load(f)
         f.close()
-        return data
+        selected_data = data[control.error]
+        return selected_data
 
     def append_header(t):
         t.header('response:',
@@ -144,12 +159,8 @@ def create_txt(control):
                    make_predictor(predForm, usetax),
                    ndays)
             if key in data:
-                potential_value = data[key]
-                if potential_value is None:
-                    print 'None data for key', key
-                    return 0
-                else:
-                    return int(potential_value)
+                value = data[key]
+                return int(value)
             else:
                 print 'no data for', key
                 return 0
@@ -172,13 +183,12 @@ def create_txt(control):
             append_detail_line(report, values, ndays)
 
     def write_lines(lines):
-        f = open(control.path_txt, 'w')
+        f = open(control.path_out_txt, 'w')
         for line in lines:
             f.write(line)
             f.write('\n')
         f.close()
 
-    pdb.set_trace()
     lines = []
     append_description(lines)
     report = Report(lines)
@@ -195,9 +205,7 @@ def create_data(control):
     key = ERROR (from command line) (one of mrmse mae)
     value = a dicionary with the error
      key =(response, predictor, training_days)
-     value = np.array with median errors from each fold, either
-      median of root median squared error; or
-      median of absolute error
+     value = scalar value from each fold
     '''
     def make_file_path(response, predictor, training_days, control):
         '''Return string containing file name.
@@ -216,10 +224,8 @@ def create_data(control):
         f.close()
         return cv_result
 
-    mean_meanAE = {}
     mean_rMeanSE = {}
     median_rMedianSE = {}
-    median_medianAE = {}
 
     # create table containing results from each cross validation
     for response in control.responses:
@@ -243,23 +249,17 @@ def create_data(control):
                             d[key] = None
 
                     print file_path
-                    save(mean_meanAE,
-                         cv_result.mean_of_mean_absolute_errors)
                     save(mean_rMeanSE,
                          cv_result.mean_of_root_mean_squared_errors)
                     save(median_rMedianSE,
                          cv_result.median_of_root_median_squared_errors)
-                    save(median_medianAE,
-                         cv_result.median_of_median_absolute_errors)
                 else:
                     print 'no file for', response, predictor, training_period
                     raise RuntimeError('missing file: ' + file_path)
 
     # write the data
-    data = {'mean_meanAE': mean_meanAE,
-            'mean_rMeanSE': mean_rMeanSE,
-            'median_rMedianSE': median_rMedianSE,
-            'median_medianAE': median_medianAE}
+    data = {'mean-root-mean-squared-errors': mean_rMeanSE,
+            'median-root-median-squared-errors': median_rMedianSE}
     print 'data'
     for k, v in data.iteritems():
         print k, v
