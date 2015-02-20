@@ -34,6 +34,8 @@ class Control(Record):
         src = directory('src')
         working = directory('working')
 
+        self.dir_working = working
+
         # handle command line arguments
         if len(arguments) != 2:
             print_help()
@@ -94,7 +96,6 @@ def create_pdf(control):
         '''
 
         # build nparrays used an input to matplotlib
-        pdb.set_trace()
         x_list = []
         y_list = []
         for k, v in median_price.iteritems():
@@ -129,9 +130,11 @@ def create_makefile(control):
         '''Produce lines for makefile.
         '''
         lines = []
-        lines.append('chart-01.data: chart-01.py')
+        working = control.dir_working
+        lines.append('%schart-01.data: chart-01.py' % working)
         lines.append('\t$(PYTHON) chart-01.py data')
-        lines.append('chart-01.pdf: chart-01.data chart-01.py')
+        lines.append('%schart-01.pdf: %schart-01.data chart-01.py' % (working,
+                                                                      working))
         lines.append('\t$(PYTHON) chart-01.py pdf')
         lines.append('chart-01.makefile: chart-01.py')
         lines.append('\t$(PYTHON) chart-01.py makefile')
