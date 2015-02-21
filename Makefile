@@ -55,20 +55,10 @@ $(WORKING)/python-dependencies.makefile: python-dependencies.py
 $(CVCELL)/%.cvcell:
 	$(PYTHON) cv-cell.py $*
 
-# CHART 01
+# CHARTS
 include chart-01.makefile
-
-# CHART 02
 include chart-02.makefile
-#$(WORKING)/chart-02.pdf: $(WORKING)/chart-02-data.pickle chart-02.py
-#	$(PYTHON) chart-02.py
-#	
-#chart-02-data += $(CVCELL)/ols-price-act-2008-30.pickle
-## chart-02 += price-act-ll-2008-60.cvcell
-## TODO: add other cells that chart-02 depends on
-
-$(WORKING)/chart-02-data.pickle: $(chart-02-data) chart-02-data.py
-	$(PYTHON) chart-02-data.py
+include chart-03.makefile
 
 
 # GENERATED TEX FILES
