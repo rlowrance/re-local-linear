@@ -1,10 +1,7 @@
-# create files (selective on how invoked)
-# WORKING/chart-02.makefile
-# WORKING/chart-02.data
-# WORKING/chart-02.txt-mean-mae.txt
-# WORKING/chart-02.txt-mean-rmeanse.txt
-# WORKING/chart-02.txt-median-rmedianse.txt
-# WORKING/chart-02.txt-median-medianae.txt
+# create files for chart-02, chart-04
+# WORKING/chart-NN.makefile
+# WORKING/chart-NN.data
+# WORKING/chart-NN.txt-SPECIFIC.txt
 
 # import built-ins and libraries
 import sys
@@ -19,16 +16,16 @@ from Record import Record
 
 
 def print_help():
-    print 'python chart-02.py SUFFIX [ERROR]'
-    print 'where SUFFIX in {"makefile", "data", "txt"}'
-    print 'and   ERROR  in {"mean-root-mean-squared-errors",'
-    print '                 "median-root-median-squared-errors"}'
+    print 'python chart-NN.py SUFFIX [SPECIFIC]'
+    print 'where SUFFIX    in {"makefile", "data", "txt"}'
+    print 'and   SPECIFIC  in {"mean-root-mean-squared-errors",'
+    print '                    "median-root-median-squared-errors"}'
 
 
 class Control(Record):
-    def __init__(self, arguments):
+    def __init__(self, chart_id, suffix, specific):
         Record.__init__(self, 'control')
-        self.me = 'chart-02'
+        self.me = 'chart-' + chart_id  # pretend to be chart-NN
 
         working = directory('working')
         log = directory('log')
@@ -40,25 +37,27 @@ class Control(Record):
         self.dir_src = src
 
         # handle command line arguments
-        if len(arguments) not in (2, 3):
+        if suffix is None:
             print print_help()
             raise RuntimeError('missing command line argument')
 
-        self.suffix = arguments[1]
+        self.suffix = suffix
 
-        if len(arguments) == 3:
-            self.error = arguments[2]
+        if specific is not None:
+            # the specific kind of output is the name of the error metric
+            self.error = specific
             if self.error == 'mean-root-mean-squared-errors':
                 self.header = 'Mean of Root Mean Squared Errors'
             elif self.error == 'median-root-median-squared-errors':
                 self.header = 'Median of Root Median Squared Errors'
             else:
                 print print_help()
-                raise RuntimeError('bad ERROR: ' + self.error)
+                raise RuntimeError('bad SPECIFIC: ' + self.error)
             self.path_out_txt = working + self.me + '-' + self.error + '.txt'
 
-        self.path_out_log = \
-            log + self.me + '-' + '-'.join(arguments[1:]) + '.log'
+        pdb.set_trace()
+        args = suffix if specific is None else suffix + '-' + specific
+        self.path_out_log = log + self.me + '-' + args + '.log'
         self.path_out_data = working + self.me + '.data'
         self.path_dir_cells = cells
         self.path_out_makefile = src + self.me + '.makefile'
@@ -75,13 +74,6 @@ class Control(Record):
 
         self.testing = False
         self.debugging = False
-
-    def __str__(self):
-        s = ''
-        for kv in sorted(self.__dict__.items()):
-            k, v = kv
-            s = s + ('control.%s = %s\n' % (k, v))
-        return s
 
 
 class Report(object):
@@ -337,19 +329,10 @@ def create_makefile(control):
         f.write('\n')
     f.close()
 
-import chart_02_04
 
+def chart_02_04(chart_id, suffix, specific):
 
-def main():
-
-    pdb.set_trace()
-    args = sys.argv
-    chart_02_04.chart_02_04(chart_id='02',
-                            suffix=args[1],
-                            specific=args[2] if len(args) == 3 else None)
-    return
-
-    control = Control(sys.argv)
+    control = Control(chart_id, suffix, specific)
     sys.stdout = Logger(logfile_path=control.path_out_log)
     print control
 
@@ -368,6 +351,3 @@ def main():
     if control.testing:
         print 'DISCARD OUTPUT: TESTING'
     print 'done'
-
-if __name__ == '__main__':
-    main()
