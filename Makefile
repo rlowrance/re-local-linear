@@ -40,6 +40,8 @@ ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-median-root-median-squared-errors.txt
+ALL += $(WORKING)/chart-03.txt
+ALL += $(WORKING)/chart-04-median-root-median-squared-errors.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -59,6 +61,7 @@ $(CVCELL)/%.cvcell:
 include chart-01.makefile
 include chart-02.makefile
 include chart-03.makefile
+include chart-04.makefile
 
 
 # GENERATED TEX FILES
