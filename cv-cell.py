@@ -26,14 +26,17 @@ from features import features
 from Logger import Logger
 from CvResult import CvResult
 from FoldResult import FoldResult
+from Record import Record
 
 
 def print_calling_sequence():
     print 'argument: RESPONSE-PREDICTORS-MODEL-YEAR-NDAYS'
 
 
-class Control(object):
+class Control(Record):
     def __init__(self, arguments):
+        Record.__init__(self, 'control')
+
         me = 'cv-cell'
 
         working = directory('working')
@@ -78,18 +81,13 @@ class Control(object):
         # eliminate null is input column sale.python_date
         self.debugging_sale_python_date = False
 
-    def __str__(self):
-        pdb.set_trace()
-        s = ''
-        for k, v in self.__dict__.iteritems():
-            s = s + ('control.%s = %s\n' % (k, v))
-        return s
-
 
 def relevant_test(df, test_years):
     ''' Return DataFrame containing just the relevant test transactions.'''
     if test_years == '2008':
         in_testing = df['sale.year'] == 2008
+    elif test_years == '2004on':
+        in_testing == df['sale.year'] >= 2004
     else:
         raise NotImplemented('test_years: ' + test_years)
     return df[in_testing]
@@ -325,12 +323,15 @@ def make_sorted_test_sale_dates(df, control):
     if control.test_years == '2008':
         first_date = datetime.date(2008, 1, 1)
         last_date = datetime.date(2008, 12, 31)
+    elif control.test_years == '2004on':
+        first_date = datetime.date(2004, 1, 1)
+        last_date = datetime.date(2009, 3, 31)
     else:
-        raise NotImplemented('control.test_years: ' + control.test_years)
+        raise NotImplementedError('control.test_years: ' + control.test_years)
     dates = df['sale.python_date']
-    in_test_years = np.logical_and(dates >= first_date,
-                                   dates <= last_date)
-    test_year_dates = dates[in_test_years]
+    in_test_period = np.logical_and(dates >= first_date,
+                                    dates <= last_date)
+    test_year_dates = dates[in_test_period]
     unique = test_year_dates.unique()
     ordered = np.sort(unique)
     return ordered
@@ -395,10 +396,7 @@ def main():
 
     control = Control(sys.argv)
     sys.stdout = Logger(logfile_path=control.path_out_log)
-
-    # log the control variables
-    for k, v in control.__dict__.iteritems():
-        print 'control', k, v
+    print control
 
     # read training data
     f = open(control.path_in_train, 'rb')
@@ -416,13 +414,10 @@ def main():
 
     # write cross validation result
     f = open(control.path_out, 'wb')
-    pickle.dump((cv_result, control), f)
+    pickle.dump(cv_result, f)
     f.close()
 
-    # log the control variables
-    for k, v in control.__dict__.iteritems():
-        print 'control', k, v
-
+    print control
     print 'done'
 
 if __name__ == '__main__':
