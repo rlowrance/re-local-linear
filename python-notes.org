@@ -12,6 +12,7 @@
     np.array(object, dtype)  # default dtype is np.float64
     np.copy(a)
     np.fromiter(iterable)
+    np.where(v_condition, v_if_true, v_if_false)
 *** creation with numerical ranges
     np.arange(stop)
     np.arange(start, stop)
@@ -37,19 +38,43 @@ Check if an array as a NaN value
     np.isnan(x).any()    # builds a boolean array of shape x.shape
 
 ** Iterate over elements
-Iterate over elements as if they were in a 1D array.
-
+*** iterate over elements in 1D array
     for item in a.flat:
        print item  # item successively holds each element of a
-
-
-Iterate over all elements in a pair of arrays.
-
+*** iterate over rows in a 2D array
+    for row_index in xrange(a2d.shape[0]):
+        row = a2d[row_index]
+*** iterate over elements in pairs of arrays
     for index, a_item in np.ndenumerate(a):
         print index, a_item
         b_item = b[index]
-*Idioms for python matplotlib.
-
+** operations on numpy arrays
+   dot(a,b)  # product (for 1D arrays), matrix product (for 3D arrays)
+   vdot(a,b) # dot product of vectors
+   linalg.norm(x)   # matrix or vector norm
+** masked arrays
+   Masked array = numpy.ndarray + mask
+   mask in {nomask, array of boolean}
+   if mask[i] is True, the corresponding element is masked (=invalid) and is not used
+*** creation with an explicit mask
+    import numpy as np
+    import numpy.ma as ma
+    x = np.array([1 ,2, np.nan])
+    mask = [0, 0, 1]  # don't use value 3
+    mx = na.masked_array(x, mask=mask)  # x and mask can be 2D and higher
+    mx.mean()  # returns 1.5, not NaN
+*** creation masking NaN and Inf values
+    mx = masked_invalid(x)  # create a view
+    mx = masked_invalid(x, True)  # create a copy
+*** viewing an existing nparray
+    mx = x.view(ma.MaskedArray)
+*** accessing only the valid entries (those with mask[i] not True]
+    mx[!mx.mask]
+    mx.compressed()  # return 1D ndarray with only valid entries
+*** properties
+    mx.mask
+    mx.data  # a view of the np.ndarray, not that some entries may be invalid
+* Idioms for python matplotlib.
 ** Pyplot tutorial
 matplotlib.pyplot is a collection of command-style functions.
 
@@ -73,28 +98,6 @@ Example:
     ax1 = fig.add_subplot(2, 1, 1) # two rows, one column, first plot
     ax1.plot(...)
     ax1.text(...)
-** masked arrays numpy.ma
-   Masked array = numpy.ndarray + mask
-   mask in {nomask, array of boolean}
-   if mask[i] is True, the corresponding element is masked (=invalid) and is not used
-*** creation with an explicit mask
-    import numpy as np
-    import numpy.ma as ma
-    x = np.array([1 ,2, np.nan])
-    mask = [0, 0, 1]  # don't use value 3
-    mx = na.masked_array(x, mask=mask)  # x and mask can be 2D and higher
-    mx.mean()  # returns 1.5, not NaN
-*** creation masking NaN and Inf values
-    mx = masked_invalid(x)  # create a view
-    mx = masked_invalid(x, True)  # create a copy
-*** viewing an existing nparray
-    mx = x.view(ma.MaskedArray)
-*** accessing only the valid entries (those with mask[i] not True]
-    mx[!mx.mask]
-    mx.compressed()  # return 1D ndarray with only valid entries
-*** properties
-    mx.mask
-    mx.data  # a view of the np.ndarray, not that some entries may be invalid
 * Idioms for pandas.
 NaN is the missing data marker.
 ** Series
@@ -390,6 +393,20 @@ Basics
     iteritems()  # iterate over (key,value) pairs
     itervalues() # iteratove over values
     popitem()    # remove and return next (key, value) pair;
+*** coroutines
+    def co(x):
+        while True:
+            yield x + 1
+    next(co(x))
+    for co_value in co(x):
+*** exceptions, builtin (all take an argument, e.g., a string)
+    IndexError  # subscript out of range
+    LookupError # invalid subscript or key
+    NotImplementedError
+    RuntimeError
+    TypeError   # argument to function has wrong type
+    ValueError  # argument to function has right type but wrong value
+    class MyException(Exception)
 ** functional programming tools
 Functional programming tools
 
