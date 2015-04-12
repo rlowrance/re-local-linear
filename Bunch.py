@@ -31,7 +31,6 @@ class Bunch(object):
         return result
 
     def __str__(self, base_name=''):
-        pdb.set_trace()
         values = self.values(self.__dict__, '')
         s = ''
         for value in values:
