@@ -1,4 +1,4 @@
-# create files for chart-02, chart-04
+# create files for chart-02X
 # WORKING/chart-NN.makefile
 # WORKING/chart-NN.data
 # WORKING/chart-NN.txt-SPECIFIC.txt
@@ -10,9 +10,9 @@ import cPickle as pickle
 import os.path
 
 # import my stuff
+from Bunch import Bunch
 from directory import directory
 from Logger import Logger
-from Record import Record
 
 
 def print_help():
@@ -22,62 +22,60 @@ def print_help():
     print '                    "median-root-median-squared-errors"}'
 
 
-class Control(Record):
-    def __init__(self, model, predictors, responses, year,
-                 chart_id, suffix, specific):
-        Record.__init__(self, 'control')
+def make_control(specs, argv):
+    # return a Bunch
 
-        self.chart_id = chart_id
-        self.me = 'chart-' + chart_id  # pretend to be chart-NN
+    def make_base_name(argv):
+        name = argv[0].split('.')
+        return name[0]
 
-        working = directory('working')
-        log = directory('log')
-        cells = directory('cells')
-        src = directory('src')
-        self.dir_working = working
-        self.dir_log = log
-        self.dir_cells = cells
-        self.dir_src = src
+    def make_data_name(argv):
+        base_name = make_base_name(argv)
+        return directory('working') + base_name + '.data'
 
-        # handle command line arguments
-        if suffix is None:
-            print print_help()
-            raise RuntimeError('missing command line argument')
+    def make_makefile_name(argv):
+        base_name = make_base_name(argv)
+        return base_name + '.makefile'
 
-        self.suffix = suffix
+    def make_log_name(argv):
+        base_name = make_base_name(argv)
+        specific = ('-' + argv[2]) if len(argv) > 2 else ''
+        return base_name + '-' + argv[1] + specific + '.log'
 
-        if specific is not None:
-            # the specific kind of output is the name of the error metric
-            self.error = specific
-            if self.error == 'mean-root-mean-squared-errors':
-                self.header = 'Mean of Root Mean Squared Errors'
-            elif self.error == 'median-root-median-squared-errors':
-                self.header = 'Median of Root Median Squared Errors'
-            else:
-                print print_help()
-                raise RuntimeError('bad SPECIFIC: ' + self.error)
-            self.path_out_txt = working + self.me + '-' + self.error + '.txt'
+    def make_txt_name(argv):
+        base_name = make_base_name(argv)
+        return directory('working') + base_name + '.txt'
 
-        args = suffix if specific is None else suffix + '-' + specific
-        self.path_out_log = log + self.me + '-' + args + '.log'
-        self.path_out_data = working + self.me + '.data'
-        self.path_dir_cells = cells
-        self.path_out_makefile = src + self.me + '.makefile'
-        self.possible_txt_files = ['mean-root-mean-squared-errors',
-                                   'median-root-median-squared-errors']
+    def make_path_out_output(argv):
+        suffix = argv[1]
+        if suffix == 'data':
+            return make_data_name(argv)
+        elif suffix == 'makefile':
+            return make_makefile_name(argv)
+        elif suffix == 'txt':
+            return make_txt_name(argv)
+        else:
+            print_help()
+            raise RuntimeError('bad SUFFIX: ' + suffix)
 
-        # components of cell names
-        self.model = model
-        self.predictors = predictors
-        self.responses = responses
-        self.year = year
-        self.model = model
-        self.responses = ['price', 'logprice']
-        self.training_periods = ['30', '60', '90', '120', '150', '180',
-                                 '210', '240', '270', '300', '330', '360']
+    def make_paths():
+        result = Bunch(dir_cells=directory('cells'),
+                       dir_working=directory('working'),
+                       out_log=directory('log') + make_log_name(argv),
+                       out_output=make_path_out_output(argv))
+        return result
 
-        self.testing = False
-        self.debugging = False
+    if not(2 <= len(argv) <= 3):
+        print_help()
+        raise RuntimeError('bad invocation')
+
+    r = Bunch(base_name=make_base_name(argv),
+              specs=specs,
+              path=make_paths(),
+              testing=False,
+              debugging=True)
+
+    return r
 
 
 class Report(object):
@@ -86,6 +84,7 @@ class Report(object):
         self.lines = lines
         self.format_header = '{:>9s}' + (' {:>8s}' * 8)
         self.format_detail = '{:9d}' + (' {:8d}' * 8)
+        self.format_legend = '{:80s}'
 
     def header(self, c0, c1, c2, c3, c4, c5, c6, c7, c8):
         print c0, c1, c2, c3, c4, c5, c6, c7, c8
@@ -110,54 +109,54 @@ class Report(object):
         # s = self.format_detail.format(ndays, c1, c2, c3, c4, c5, c6, c7, c8)
         self.lines.append(s)
 
+    def legend(self, txt):
+        print 'legend', txt
+        s = self.format_legend.format(txt)
+        self.lines.append(s)
+
 
 def create_txt(control):
     '''Return list of lines that are chart 02.txt.
     '''
     def append_description(lines):
         '''Append header lines'''
-        lines.append(control.header)
+        lines.append(control.specs.title)
         lines.append('From 10-fold Cross Validation')
         lines.append(' ')
-        lines.append('Model: OLS')
-        lines.append('Time period: 2008')
+        lines.append('Model: ' + control.specs.model)
+        lines.append('Time period: ' + control.specs.year)
         lines.append(' ')
 
     def read_data():
         '''Return correct data dict built by create_data() function.'''
-        f = open(control.path_out_data, 'rb')
+        path = control.path.dir_working + control.base_name + '.data'
+        f = open(path, 'rb')
         data = pickle.load(f)
         f.close()
-        selected_data = data[control.error]
-        return selected_data
+        return data
 
     def append_header(t):
         t.header('response:',
                  'price', 'price', 'price', 'price',
                  'logprice', 'logprice', 'logprice', 'logprice')
-        t.header('predForm:',
-                 'level', 'level', 'log', 'log',
-                 'level', 'level', 'log', 'log')
-        t.header('use tax:',
-                 'yes', 'no',
-                 'yes', 'no',
-                 'yes', 'no',
-                 'yes', 'no')
+        t.header('features:',
+                 control.specs.feature_sets[0],
+                 control.specs.feature_sets[1],
+                 control.specs.feature_sets[2],
+                 control.specs.feature_sets[3],
+                 control.specs.feature_sets[0],
+                 control.specs.feature_sets[1],
+                 control.specs.feature_sets[2],
+                 control.specs.feature_sets[3])
         t.header('ndays', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ')
 
-    def make_predictor(predForm, usetax):
-        '''Return predictor.'''
-        prefix = 'act' if usetax == 'yes' else 'ct'
-        suffix = 'log' if predForm == 'log' else ''
-        return prefix + suffix
-
     def append_detail_line(report, data, ndays):
-        def v(response, predForm, usetax):
+        def v(response, features):
             '''Return int or 0, the value in the report.
             '''
-            key = (response,
-                   make_predictor(predForm, usetax),
-                   ndays)
+            # features := predictor
+            # shortened, so save one column in the printout
+            key = (response, features, ndays)
             if key in data:
                 value = data[key]
                 return int(value)
@@ -166,25 +165,36 @@ def create_txt(control):
                 return 0
 
         report.detail(int(ndays),
-                      v('price', 'level', 'yes'),
-                      v('price', 'level', 'no'),
-                      v('price', 'log', 'yes'),
-                      v('price', 'log', 'no'),
-                      v('logprice', 'level', 'yes'),
-                      v('logprice', 'level', 'no'),
-                      v('logprice', 'log', 'yes'),
-                      v('logprice', 'log', 'no'))
+                      v('price', control.specs.feature_sets[0]),
+                      v('price', control.specs.feature_sets[1]),
+                      v('price', control.specs.feature_sets[2]),
+                      v('price', control.specs.feature_sets[3]),
+                      v('logprice', control.specs.feature_sets[0]),
+                      v('logprice', control.specs.feature_sets[1]),
+                      v('logprice', control.specs.feature_sets[2]),
+                      v('logprice', control.specs.feature_sets[3]))
 
     def append_detail_lines(report, values):
         '''Append body lines to report using values.'''
 
         # one line for each training period
-        for ndays in control.training_periods:
+        for ndays in control.specs.training_periods:
             append_detail_line(report, values, ndays)
 
+    def append_legend_lines(report):
+        def r(s):
+            report.legend(s)
+
+        r(' ')
+        r('features set definitions')
+        r('act: features derived from accessor, census, and taxroll data')
+        r('actlog: like act, but size feaures in log domain')
+        r('ct: features derived from census and taxroll data')
+        r('ctlog: like ct, but size features in log domain')
+        r(' ')
+
     def write_lines(lines):
-        pdb.set_trace()
-        f = open(control.path_out_txt, 'w')
+        f = open(control.path.out_output, 'w')
         for line in lines:
             f.write(line)
             f.write('\n')
@@ -196,6 +206,7 @@ def create_txt(control):
     append_header(report)
     data = read_data()
     append_detail_lines(report, data)
+    append_legend_lines(report)
     write_lines(lines)
 
 
@@ -212,12 +223,12 @@ def create_data(control):
     def make_file_path(response, predictor, training_days, control):
         '''Return string containing file name.
         '''
-        cell_file_name = '%s-%s-%s-%s-%s.cvcell' % (control.model,
+        cell_file_name = '%s-%s-%s-%s-%s.cvcell' % (control.specs.model,
                                                     response,
                                                     predictor,
-                                                    control.year,
+                                                    control.specs.year,
                                                     training_days)
-        return control.dir_cells + cell_file_name
+        return control.path.dir_cells + cell_file_name
 
     def get_cv_result(file_path):
         '''Return CvResult instance.'''
@@ -226,47 +237,42 @@ def create_data(control):
         f.close()
         return cv_result
 
-    mean_rMeanSE = {}
-    median_rMedianSE = {}
-
     # create table containing results from each cross validation
-    for response in control.responses:
-        for predictor in control.predictors:
-            for training_period in control.training_periods:
+    data = {}
+    for response in control.specs.responses:
+        for feature_set in control.specs.feature_sets:
+            for training_period in control.specs.training_periods:
                 file_path = make_file_path(response,
-                                           predictor,
+                                           feature_set,
                                            training_period,
                                            control)
-                key = (response, predictor, training_period)
+                key = (response, feature_set, training_period)
                 if os.path.isfile(file_path):
                     cv_result = get_cv_result(file_path)
-
-                    def save(d, method):
-                        '''Save cv_result.method() into d[key].'''
-                        value = method()
-                        if value.has_value:
-                            d[key] = value.value
+                    if control.specs.metric == \
+                            'median-of-root-median-squared-errors':
+                        maybe_value = \
+                            cv_result.median_of_root_median_squared_errors()
+                        if maybe_value.has_value:
+                            data[key] = maybe_value.value
                         else:
                             print 'no value for', key
-                            d[key] = None
+                            data[key] = None
+                    else:
+                        print control.specs
+                        raise RuntimeError('metric not implemented: ' + \
+                                           control.specs.metric)
 
-                    print file_path
-                    save(mean_rMeanSE,
-                         cv_result.mean_of_root_mean_squared_errors)
-                    save(median_rMedianSE,
-                         cv_result.median_of_root_median_squared_errors)
                 else:
-                    print 'no file for', response, predictor, training_period
+                    print 'no file for', response, feature_set, training_period
                     raise RuntimeError('missing file: ' + file_path)
 
-    # write the data
-    data = {'mean-root-mean-squared-errors': mean_rMeanSE,
-            'median-root-median-squared-errors': median_rMedianSE}
-    print 'data'
+    # write the data (so that its in the log)
     for k, v in data.iteritems():
         print k, v
 
-    f = open(control.path_out_data, 'wb')
+    path = control.path.out_output
+    f = open(path, 'wb')
     pickle.dump(data, f)
     f.close()
 
@@ -276,15 +282,15 @@ def create_makefile(control):
     def make_file_names():
         '''Return list of cell names.'''
         file_names = []
-        for response in control.responses:
-            for predictor in control.predictors:
-                for training_period in control.training_periods:
-                    cell_name = '%s-%s-%s-%s-%s' % (control.model,
+        for response in control.specs.responses:
+            for predictor in control.specs.predictors:
+                for training_period in control.specs.training_periods:
+                    cell_name = '%s-%s-%s-%s-%s' % (control.specs.model,
                                                     response,
                                                     predictor,
-                                                    control.year,
+                                                    control.specs.year,
                                                     training_period)
-                    file_name = '%s%s.cvcell' % (control.dir_cells,
+                    file_name = '%s%s.cvcell' % (control.path.dir_cells,
                                                  cell_name)
                     file_names.append(file_name)
                     if control.testing and len(file_names) > 0:
@@ -303,54 +309,55 @@ def create_makefile(control):
         #   $(PYTHON) chart-02.py makefile
         '''
         lines = []
-        lines.append('# makefile generated by %s makefile' % control.me)
-        lines.append('%s-cells = %s' % (control.me,
-                                        ' '.join(make_file_names())))
+        lines.append('# makefile generated by python %s.py makefile' %
+                     control.base_name)
+        lines.append('%s-cells = %s' %
+                     (control.base_name, ' '.join(make_file_names())))
 
-        for txt_file in control.possible_txt_files:
-            lines.append('%s%s-%s.txt: %s%s.data %s.py' % (control.dir_working,
-                                                           control.me,
-                                                           txt_file,
-                                                           control.dir_working,
-                                                           control.me,
-                                                           control.me))
-            lines.append('\t$(PYTHON) %s.py txt %s' % (control.me,
-                                                       txt_file))
+        path = control.path.dir_working + control.base_name
+        lines.append('%s.txt: %s.data %s.py' %
+                     (path,
+                      path,
+                      control.base_name))
+        lines.append('\t$(PYTHON) %s.py txt' % control.base_name)
 
-        lines.append('%s%s.data: $(%s-cells) %s.py' % (control.dir_working,
-                                                       control.me,
-                                                       control.me,
-                                                       control.me))
-        lines.append('\t$(PYTHON) %s.py data' % control.me)
+        lines.append('%s.data: $(%s-cells) %s.py' %
+                     (path,
+                      control.base_name,
+                      control.base_name))
+        lines.append('\t$(PYTHON) %s.py data' % control.base_name)
         return lines
 
     lines = make_lines()
-    f = open(control.path_out_makefile, 'w')
+    if True:
+        # write first few columns of each line
+        print 'makefile'
+        for line in lines:
+            print line[:80]
+    f = open(control.path.out_output, 'w')
     for line in lines:
         f.write(line)
         f.write('\n')
     f.close()
 
 
-def chart(model, predictors, responses, year,
-          chart_id, suffix, specific):
-    '''create files for charts 02, 04, 05
+def chart(specs, argv):
+    '''create files for charts 02-X
     ARGS
-    chart-id: string, one of '02', '04'
-    suffix  : string, one of 'makefile' 'data' 'txt'
-    specific: None or string,
+    specs: a Bunch of specifications
+    argv: the value of sys.argv from the caller (a main program)
     '''
     pdb.set_trace()
-    control = Control(model, predictors, responses, year,
-                      chart_id, suffix, specific)
-    sys.stdout = Logger(logfile_path=control.path_out_log)
+    control = make_control(specs, argv)
+    sys.stdout = Logger(logfile_path=control.path.out_log)
     print control
 
-    if control.suffix == 'makefile':
+    suffix = argv[1]
+    if suffix == 'makefile':
         create_makefile(control)
-    elif control.suffix == 'data':
+    elif suffix == 'data':
         create_data(control)
-    elif control.suffix == 'txt':
+    elif suffix == 'txt':
         create_txt(control)
     else:
         print_help()
