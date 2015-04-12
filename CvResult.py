@@ -50,18 +50,21 @@ class CvResult(object):
             known_fold_values = fold[~np.isnan(fold)]  # drop NaNs
             return Maybe.Maybe(reduce_fold_summary_to_number(known_fold_values))
 
-
     def mean_of_root_mean_squared_errors(self):
+        # return Maybe(mean of root mean squared errors)
         return self._reduce_fold_errors(errors.root_mean_squared_error,
                                         errors.mean_error)
 
     def median_of_root_median_squared_errors(self):
+        # return Mabye(median of root median squared errors)
         return self._reduce_fold_errors(errors.root_median_squared_error,
                                         errors.median_error)
 
 
 if __name__ == '__main__':
     import unittest
+    if False:
+        pdb.set_trace()
 
     class Test(unittest.TestCase):
 
@@ -89,7 +92,6 @@ if __name__ == '__main__':
             self.cv1 = make_cv_result(fr1, fr2, fr3)
             self.cv2 = make_cv_result(fr3)
             self.cv3 = make_cv_result(fr4)
-
 
         def test_mean_of_root_mean_squared_errors_cv1(self):
             fr1 = math.sqrt((9 * 9 + 18 * 18 + 27 * 27) / 3.0)
