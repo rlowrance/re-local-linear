@@ -39,9 +39,8 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
-ALL += $(WORKING)/chart-02-median-root-median-squared-errors.txt
+ALL += $(WORKING)/chart-02-ols-median-of-root-median-squared-errors.txt
 ALL += $(WORKING)/chart-03.txt
-#ALL += $(WORKING)/chart-04-median-root-median-squared-errors.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -59,17 +58,15 @@ $(CVCELL)/%.cvcell:
 
 # CHARTS
 include chart-01.makefile
-include chart-02.makefile
+include chart-02-ols-median-of-root-median-squared-errors.makefile
 include chart-03.makefile
-include chart-04.makefile
-include chart-05.makefile
+#include chart-04.makefile
+#include chart-05.makefile
 
-# TODO: write rules for other *.makefile files
-chart-02.makefile: chart-02.py 
-	python chart-02.py makefile
-
-chart-05.makefile: chart-05.py chart_02_04_05.py
-	python chart-05.py makefile
+# rules for other *.makefile files
+chart-02-ols-median-of-root-median-squared-errors.makefile: \
+  chart-02-ols-median-of-root-median-squared-errors.py 
+	python chart-02-ols-median-of-root-median-squared-errors.py makefile
 
 
 # GENERATED TEX FILES
