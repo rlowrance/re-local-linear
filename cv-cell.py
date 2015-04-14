@@ -273,10 +273,52 @@ def fit_model(train_x, train_y, control):
                                           normalize=False,
                                           copy_X=True)
         fitted = m.fit(train_x, train_y)
-        if False:
+        if True:
             print 'fitted values'
             print 'coefficients', fitted.coef_
             print 'intercept', fitted.intercept_
+            pdb.set_trace()
+        return fitted
+    elif control.model == 'huber100':
+        sgd = sklearn.linear_model.SGDRegressor
+        eta0 = .01
+        eta0 = .02
+        eta0 = .005
+        eta0 = .001
+        eta0 = 1e-5
+        # eta0 = 1e-6
+        # eta0 = .5
+        # eta0 = 1.0
+        eta0 = 1e-7
+        learning_rate = 'invscaling'
+        power_t = 0.25
+        loss = 'huber'
+        epsilon = 1.0
+        # loss = 'squared_loss'
+        m = sgd(loss='huber',
+                epsilon=epsilon,  # if loss above epsilon, use linear loss
+                penalty='none',  # no regularizer
+                fit_intercept=True,
+                n_iter=10000,  # number of epochs
+                shuffle=True,   # shuffle training data after each epoch
+                verbose=2,
+                learning_rate=learning_rate,
+                eta0=eta0,
+                warm_start=False)
+        fitted = m.fit(train_x, train_y)
+        if True:
+            print 'fitted values'
+            print 'coefficients', fitted.coef_
+            print 'intercept', fitted.intercept_
+            print 'train_x shape', train_x.shape
+            print 'loss', loss
+            print 'epsilon', epsilon
+            print 'learning rate', learning_rate, power_t
+            print 'eta0', eta0
+            print 'parameters', m.get_params()
+            if loss != 'huber':
+                print 'NOT HUBER LOSS'
+            pdb.set_trace()
         return fitted
     else:
         raise NotImplemented('model: ' + control.model)
