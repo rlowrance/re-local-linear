@@ -28,7 +28,6 @@ def main():
                                     '210', '240', '270', '300', '330', '360'],
                   feature_sets=['act', 'actlog', 'ct', 'ctlog'],
                   responses=['price', 'logprice'],
-                  usetax=['yes', 'no'],
                   year='2008')
     chart(specs=specs,
           argv=sys.argv)
