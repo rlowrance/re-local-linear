@@ -238,6 +238,16 @@ def create_data(control):
         return cv_result
 
     # create table containing results from each cross validation
+    def cv_result_summary(cv_result):
+        if control.specs.metric == 'median-of-root-median-squared-errors':
+            maybe_value = cv_result.median_of_root_median_squared_errors()
+        elif control.specs.metric == 'mean-of-root-mean-squared-errors':
+            maybe_value = cv_result.mean_of_root_mean_squared_errors()
+        else:
+            print control.specs
+            raise RuntimeError('unknown metric: ' + control.specs.metric)
+        return maybe_value.value if maybe_value.has_value else None
+
     data = {}
     for response in control.specs.responses:
         for feature_set in control.specs.feature_sets:
@@ -249,20 +259,7 @@ def create_data(control):
                 key = (response, feature_set, training_period)
                 if os.path.isfile(file_path):
                     cv_result = get_cv_result(file_path)
-                    if control.specs.metric == \
-                            'median-of-root-median-squared-errors':
-                        maybe_value = \
-                            cv_result.median_of_root_median_squared_errors()
-                        if maybe_value.has_value:
-                            data[key] = maybe_value.value
-                        else:
-                            print 'no value for', key
-                            data[key] = None
-                    else:
-                        print control.specs
-                        raise RuntimeError('metric not implemented: ' + \
-                                           control.specs.metric)
-
+                    data[key] = cv_result_summary(cv_result)
                 else:
                     print 'no file for', response, feature_set, training_period
                     raise RuntimeError('missing file: ' + file_path)
@@ -283,11 +280,11 @@ def create_makefile(control):
         '''Return list of cell names.'''
         file_names = []
         for response in control.specs.responses:
-            for predictor in control.specs.predictors:
+            for feature_set in control.specs.feature_sets:
                 for training_period in control.specs.training_periods:
                     cell_name = '%s-%s-%s-%s-%s' % (control.specs.model,
                                                     response,
-                                                    predictor,
+                                                    feature_set,
                                                     control.specs.year,
                                                     training_period)
                     file_name = '%s%s.cvcell' % (control.path.dir_cells,
