@@ -21,9 +21,6 @@ from chart_02_template import chart
 
 
 def main():
-    def median_value(x):
-        cvresult = CvResult(x)
-
     specs = Bunch(metric='median-of-root-median-squared-errors',
                   title='Median of Root Median Squared Errors',
                   model='ols',
@@ -31,7 +28,6 @@ def main():
                                     '210', '240', '270', '300', '330', '360'],
                   feature_sets=['act', 'actlog', 'ct', 'ctlog'],
                   responses=['price', 'logprice'],
-                  usetax=['yes', 'no'],
                   year='2008')
     chart(specs=specs,
           argv=sys.argv)
