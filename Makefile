@@ -41,6 +41,8 @@ ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-mean-of-root-mean-squared-errors.txt
 ALL += $(WORKING)/chart-02-ols-median-of-root-median-squared-errors.txt
+ALL += $(WORKING)/chart-02-ransac-median-of-root-median-squared-errors.txt
+#ALL += $(WORKING)/chart-02-theilsen-median-of-root-median-squared-errors.txt
 #ALL += $(WORKING)/chart-02-huber100-median-of-root-median-squared-errors.txt
 ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/record-counts.tex
@@ -62,6 +64,8 @@ $(CVCELL)/%.cvcell:
 include chart-01.makefile
 include chart-02-ols-mean-of-root-mean-squared-errors.makefile
 include chart-02-ols-median-of-root-median-squared-errors.makefile
+include chart-02-ransac-median-of-root-median-squared-errors.makefile
+#include chart-02-theilsen-median-of-root-median-squared-errors.makefile
 #include chart-02-huber100-median-of-root-median-squared-errors.makefile
 include chart-03.makefile
 #include chart-04.makefile
@@ -76,9 +80,17 @@ chart-02-ols-median-of-root-median-squared-errors.makefile: \
   chart-02-ols-median-of-root-median-squared-errors.py 
 	python chart-02-ols-median-of-root-median-squared-errors.py makefile
 
-chart-02-huber100-median-of-root-median-squared-errors.makefile: \
-  chart-02-huber100-median-of-root-median-squared-errors.py 
-	python chart-02-huber100-median-of-root-median-squared-errors.py makefile
+chart-02-ransac-median-of-root-median-squared-errors.makefile: \
+  chart-02-ransac-median-of-root-median-squared-errors.py 
+	python chart-02-ransac-median-of-root-median-squared-errors.py makefile
+
+#chart-02-huber100-median-of-root-median-squared-errors.makefile: \
+#  chart-02-huber100-median-of-root-median-squared-errors.py 
+#	python chart-02-huber100-median-of-root-median-squared-errors.py makefile
+#
+#chart-02-theilsen-median-of-root-median-squared-errors.makefile: \
+#  chart-02-theilsen-median-of-root-median-squared-errors.py 
+#	python chart-02-theilsen-median-of-root-median-squared-errors.py makefile
 
 
 # GENERATED TEX FILES
