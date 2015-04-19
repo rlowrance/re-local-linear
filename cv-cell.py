@@ -16,6 +16,8 @@ import cPickle as pickle
 from sklearn import cross_validation
 from sklearn import linear_model
 import sklearn
+# import statsmodels.api as sm
+from statsmodels.regression.quantile_regression import QuantReg
 import numpy as np
 import datetime
 import pandas as pd
@@ -52,6 +54,9 @@ class Control(Record):
         # parse the positional argument
         arg1 = arguments[1]
         splits = arg1.split('-')
+        if len(splits) != 5:
+            print_calling_sequence()
+            raise RuntimeError('bad invocation argument: ' + arg1)
         self.model = splits[0]
         self.response = splits[1]
         self.predictors = splits[2]
@@ -265,11 +270,50 @@ def make_relevant(sale_date, test, train, control):
     return relevant_test, relevant_train
 
 
+class Quantile50(object):
+    def __init__(self):
+        self.q = .5
+
+    def fit(self, train_x, train_y):
+        pdb.set_trace()
+        m = QuantReg(endog=train_y,  # response variable
+                     exog=train_x)   # explanatory variables
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error')
+            try:
+                fitted = m.fit(q=self.q)
+            except Warning as w:
+                # for argument quantil50-logprice-act-2008-30
+                # raises Convergence cycle detected
+                print 'raised', w
+                raise RuntimeError(w)
+        fitted = m.fit(q=self.q)  # take defaults for methods
+        if True:
+            print 'fitted value from QuantReg'
+            print fitted
+            print dir(fitted)
+            print fitted.summary()
+            print 'model degrees of freedom', fitted.df_model
+            print 'residual degress of freedom', fitted.df_resid
+            print 'endog names', fitted.endog_names
+            print 'exog names', fitted.exog_names
+        return fitted
+
+    def predict(fitted, test_x):
+        pdb.set_trace()
+        estimates = QuantReg.predict(params=fitted.params, exog=test_x)
+        return estimates
+
+
 def fit_model(train_x, train_y, control):
     '''Return fitted model instance.
 
     Pass control structure, because may need hyperparameters.
     '''
+    # TODO: convert code to structure similar to quantile50
+    # - build a class that does the fitting and predicting
+    # - that puts together the peculiar features of each API
+    # - note that scikit-learn and statsmodels have different APIs
     if control.model == 'ols':
         m = linear_model.LinearRegression(fit_intercept=True,
                                           normalize=False,
@@ -281,6 +325,8 @@ def fit_model(train_x, train_y, control):
             print 'intercept', fitted.intercept_
             pdb.set_trace()
         return fitted
+    elif control.model == 'quantile50':
+        return Quantile50().fit(train_x, train_y)
     elif control.model == 'ransac':
         r = linear_model.RANSACRegressor
         m = r()  # take all the defaults
@@ -348,7 +394,11 @@ def fit_model(train_x, train_y, control):
 
 def predict_model(test_x, fitted, control):
     '''Return estimes'''
-    estimates = fitted.predict(test_x)
+    if control.model == 'quantile50':
+        estimates = Quantile50().predict(fitted, test_x)
+    else:
+        # protocol for scikit-learn
+        estimates = fitted.predict(test_x)
     return estimates
 
 
