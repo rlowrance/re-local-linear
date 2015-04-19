@@ -19,6 +19,7 @@ import sklearn
 import numpy as np
 import datetime
 import pandas as pd
+import warnings
 
 # import my stuff
 from directory import directory
@@ -178,6 +179,7 @@ def maybe_add_age(df_list, from_to_list, predictor_names, test_date):
             df[age2_name] = age * age
 
     # add age column to DataFrames
+    pd.options.mode.chained_assignment = None  # default='warn'
     for df in df_list:
         for from_to in from_to_list:
             helper(df, from_to)
@@ -278,6 +280,26 @@ def fit_model(train_x, train_y, control):
             print 'coefficients', fitted.coef_
             print 'intercept', fitted.intercept_
             pdb.set_trace()
+        return fitted
+    elif control.model == 'ransac':
+        r = linear_model.RANSACRegressor
+        m = r()  # take all the defaults
+        fitted = m.fit(train_x, train_y)
+        return fitted
+    elif control.model == 'theilsen':
+        ts = linear_model.TheilSenRegressor
+        # note: not implemented in scikit learn 15.2
+        # implemented in scikit learn 16.0
+        verbose = True
+        m = ts(fit_intercept=True,
+               copy_X=True,  # otherwise, X may be overwritten
+               max_subpopulation=1e4,  # use default stochastic sample size
+               n_subsamples=None,      # use default
+               max_iter=300,           # use default number of iterations
+               tol=1e-3,               # use default
+               n_jobs=1,               # one job, since make runs many jobs
+               verbose=verbose)
+        fitted = m.fit(train_x, train_y)
         return fitted
     elif control.model == 'huber100':
         sgd = sklearn.linear_model.SGDRegressor
@@ -436,6 +458,7 @@ def make_cv_result(df, control):
 
 def main():
 
+    warnings.filterwarnings('error')
     control = Control(sys.argv)
     sys.stdout = Logger(logfile_path=control.path_out_log)
     print control
