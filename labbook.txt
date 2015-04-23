@@ -10,4 +10,3 @@ Note that the same warning is on the example page for the function, which can
 be found my searching "statsmodel quantile regression convergence warning"
 
 So I'm going to use just ransac, at least for now.
-
