@@ -1,4 +1,4 @@
-# create files for chart-02-ols-mean-of-root-mean-squared-errors
+# create files for chart-02-*
 # with these choices
 #  metric     in mean-root-mean-squared-errors
 #  model      in ols

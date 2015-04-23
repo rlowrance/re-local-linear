@@ -1,4 +1,4 @@
-# create files for chart-02-theilsen-median-of-root-mdian-squared-errors
+# create files for chart-02-*
 # with these choices
 #  metric     in median-root-median-squared-errors
 #  model      in theilsen

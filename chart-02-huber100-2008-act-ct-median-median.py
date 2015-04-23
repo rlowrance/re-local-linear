@@ -1,4 +1,4 @@
-# create files for chart-02-huber100-median-of-root-mdian-squared-errors
+# create files for chart-02-X
 # with these choices
 #  metric     in median-root-median-squared-errors
 #  model      in q50 (quantile-50)
