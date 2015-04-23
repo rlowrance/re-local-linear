@@ -67,6 +67,7 @@ def make_control(specs, argv):
 
     if not(2 <= len(argv) <= 3):
         print_help()
+        print 'argv', argv
         raise RuntimeError('bad invocation')
 
     r = Bunch(base_name=make_base_name(argv),
