@@ -182,16 +182,24 @@ def create_txt(control):
         for ndays in control.specs.training_periods:
             append_detail_line(report, values, ndays)
 
+    feature_set_desc = \
+        dict(act='features derived from accessor, census, and taxroll data',
+             actlog='like at, but size features in log domain',
+             ct='features derived from census and taxroll data',
+             ctlog='like ct, but size features in log domain',
+             t='features derived from taxroll data',
+             tlog='like t, but size features in log domain'
+             )
+
     def append_legend_lines(report):
+        # print legend describing features sets actually used
         def r(s):
             report.legend(s)
 
         r(' ')
         r('features set definitions')
-        r('act: features derived from accessor, census, and taxroll data')
-        r('actlog: like act, but size feaures in log domain')
-        r('ct: features derived from census and taxroll data')
-        r('ctlog: like ct, but size features in log domain')
+        for feature_set in control.specs.feature_sets:
+            r(feature_set + ': ' + feature_set_desc[feature_set])
         r(' ')
 
     def write_lines(lines):
