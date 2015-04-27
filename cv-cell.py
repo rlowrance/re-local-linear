@@ -319,7 +319,7 @@ def fit_model(train_x, train_y, control):
                                           normalize=False,
                                           copy_X=True)
         fitted = m.fit(train_x, train_y)
-        if True:
+        if False:
             print 'fitted values'
             print 'coefficients', fitted.coef_
             print 'intercept', fitted.intercept_
@@ -437,8 +437,8 @@ def make_sorted_test_sale_dates(df, control):
     if control.test_years == '2008':
         first_date = datetime.date(2008, 1, 1)
         last_date = datetime.date(2008, 12, 31)
-    elif control.test_years == '2004on':
-        first_date = datetime.date(2004, 1, 1)
+    elif control.test_years == '2003on':
+        first_date = datetime.date(2003, 1, 1)
         last_date = datetime.date(2009, 3, 31)
     else:
         raise NotImplementedError('control.test_years: ' + control.test_years)
@@ -461,10 +461,20 @@ def make_fold_result(fold_number, test, train, control):
     sorted_sale_dates = make_sorted_test_sale_dates(test, control)
     fold_result = FoldResult()
     for test_sale_date in sorted_sale_dates:
-        actuals, estimates = make_fold_result_for_sale_date(test_sale_date,
-                                                            test,
-                                                            train,
-                                                            control)
+        with warnings.catch_warnings():
+            try:
+                actuals, estimates = \
+                    make_fold_result_for_sale_date(test_sale_date,
+                                                   test,
+                                                   train,
+                                                   control)
+            except Warning as w:
+                print 'warning raised:', w
+                print 'fold_number', fold_number
+                print 'test_sale_date', test_sale_date
+                print 'skipping this test date'
+                continue
+
         fold_result.extend(actuals, estimates)
         print \
             control.command_line, \
