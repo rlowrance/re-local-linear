@@ -40,6 +40,7 @@ ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-median-median.txt
+ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
@@ -62,6 +63,7 @@ $(CVCELL)/%.cvcell:
 # CHARTS
 include chart-01.makefile
 include chart-02-ols-2003on-ct-t-median-median.makefile
+include chart-02-ols-2003on-ct-t-mean-mean.makefile
 include chart-02-ols-2008-act-ct-mean-mean.makefile
 include chart-02-ols-2008-act-ct-median-median.makefile
 include chart-02-ransac-2008-act-ct-median-median.makefile
@@ -70,6 +72,10 @@ include chart-03.makefile
 #include chart-05.makefile
 
 # rules for other *.makefile files
+chart-02-ols-2003on-ct-t-mean-mean.makefile: \
+	chart-02-ols-2003on-ct-t-mean-mean.py
+	python chart-02-ols-2003on-ct-t-mean-mean.py makefile
+
 chart-02-ols-2003on-ct-t-median-median.makefile: \
 	chart-02-ols-2003on-ct-t-median-median.py
 	python chart-02-ols-2003on-ct-t-median-median.py makefile
