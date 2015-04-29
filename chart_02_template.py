@@ -20,6 +20,7 @@ def print_help():
     print 'where SUFFIX    in {"makefile", "data", "txt"}'
     print 'and   SPECIFIC  in {"mean-root-mean-squared-errors",'
     print '                    "median-root-median-squared-errors"}'
+    print '                    "mean-fraction-wi10"}'
 
 
 def make_control(specs, argv):
@@ -70,21 +71,29 @@ def make_control(specs, argv):
         print 'argv', argv
         raise RuntimeError('bad invocation')
 
+    if argv[1] == 'txt':
+        # set format for the error entries in the table
+        table_entry_format = \
+            '8.3f' if specs.metric == 'mean-of-fraction-wi10' else '8d'
+    else:
+        table_entry_format = None
+
     r = Bunch(base_name=make_base_name(argv),
               specs=specs,
               path=make_paths(),
+              table_entry_format=table_entry_format,
               testing=False,
-              debugging=True)
+              debugging=False)
 
     return r
 
 
 class Report(object):
 
-    def __init__(self, lines):
+    def __init__(self, lines, table_entry_format):
         self.lines = lines
         self.format_header = '{:>9s}' + (' {:>8s}' * 8)
-        self.format_detail = '{:9d}' + (' {:8d}' * 8)
+        self.format_detail = '{:9d}' + ((' {:%s}' % table_entry_format) * 8)
         self.format_legend = '{:80s}'
 
     def header(self, c0, c1, c2, c3, c4, c5, c6, c7, c8):
@@ -160,7 +169,10 @@ def create_txt(control):
             key = (response, features, ndays)
             if key in data:
                 value = data[key]
-                return int(value)
+                if control.specs.metric == 'mean-of-fraction-wi10':
+                    return value
+                else:
+                    return int(value)
             else:
                 print 'no data for', key
                 return 0
@@ -211,7 +223,7 @@ def create_txt(control):
 
     lines = []
     append_description(lines)
-    report = Report(lines)
+    report = Report(lines, control.table_entry_format)
     append_header(report)
     data = read_data()
     append_detail_lines(report, data)
@@ -250,6 +262,8 @@ def create_data(control):
     def cv_result_summary(cv_result):
         if control.specs.metric == 'median-of-root-median-squared-errors':
             maybe_value = cv_result.median_of_root_median_squared_errors()
+        elif control.specs.metric == 'mean-of-fraction-wi10':
+            maybe_value = cv_result.mean_of_fraction_wi10()
         elif control.specs.metric == 'mean-of-root-mean-squared-errors':
             maybe_value = cv_result.mean_of_root_mean_squared_errors()
         else:

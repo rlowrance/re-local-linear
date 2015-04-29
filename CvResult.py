@@ -60,6 +60,20 @@ class CvResult(object):
         return self._reduce_fold_errors(errors.root_median_squared_error,
                                         errors.median_error)
 
+    def mean_of_fraction_wi10(self):
+        # return Maybe(mean of fraction of estimates within 10 percent)
+        # approach
+        # 1. Determine for each fold the fraction within 10 percent
+        # 2. Take the mean of these fractions
+        fold = np.full(len(self.fold_results), np.nan)
+        for index, fr in self.fold_results.iteritems():
+            abs_errors = np.abs(fr.actuals - fr.estimates)
+            abs_errors_is_less = (abs_errors / fr.actuals) < 0.10
+            fold[index] = sum(abs_errors_is_less * 1.0 / fr.actuals.size)
+
+        result = np.mean(fold)
+        return Maybe.Maybe(result)
+
 
 if __name__ == '__main__':
     import unittest
