@@ -20,8 +20,8 @@ from chart_02_template import chart
 
 
 def main():
-    specs = Bunch(metric='median-of-root-median-squared-errors',
-                  title='Median of Root Median Squared Errors',
+    specs = Bunch(metric='median-median',
+                  title='Median of Median Errors From Folds',
                   model='ransac',
                   training_periods=['30', '60', '90', '120', '150', '180',
                                     '210', '240', '270', '300', '330', '360'],

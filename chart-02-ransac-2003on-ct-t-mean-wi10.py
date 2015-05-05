@@ -1,11 +1,4 @@
 # create files for chart-02-ransac-*
-# with these choices
-#  metric     in median-root-median-squared-errors
-#  model      in ransac
-#  ndays      in 30 60 ... 360
-#  predictors in ct ctlog t tlog
-#  responses  in price logprice
-#  year       in 2003on
 # invocations and files created
 #  python chart-02X.py makefile -> src/chart-02X.makefile
 #  python chart-02X.py data     -> data/working/chart-02X.data
@@ -20,14 +13,15 @@ from chart_02_template import chart
 
 
 def main():
-    specs = Bunch(metric='mean-of-fraction-wi10',
-                  title='Mean of Fraction Within 10 Percent',
-                  model='ransac',
-                  training_periods=['30', '60', '90', '120', '150', '180',
-                                    '210', '240', '270', '300', '330', '360'],
-                  feature_sets=['ct', 'ctlog', 't', 'tlog'],
-                  responses=['price', 'logprice'],
-                  year='2003on')
+    specs = \
+        Bunch(metric='mean-wi10',
+              title='Mean of Fraction Within 10 Percent Of Actual From Folds',
+              model='ransac',
+              training_periods=['30', '60', '90', '120', '150', '180',
+                                '210', '240', '270', '300', '330', '360'],
+              feature_sets=['ct', 'ctlog', 't', 'tlog'],
+              responses=['price', 'logprice'],
+              year='2003on')
     chart(specs=specs,
           argv=sys.argv)
 

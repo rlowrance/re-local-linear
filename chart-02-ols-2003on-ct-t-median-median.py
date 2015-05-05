@@ -1,11 +1,4 @@
 # create files for chart-02-*
-# with these choices
-#  metric     in median-root-median-squared-errors
-#  model      in ols
-#  ndays      in 30 60 ... 360
-#  predictors in ct ctlog t tlog
-#  responses  in price logprice
-#  year       in 2003on
 # invocations and files created
 #  python chart-02X.py makefile -> src/chart-02X.makefile
 #  python chart-02X.py data     -> data/working/chart-02X.data
@@ -20,8 +13,8 @@ from chart_02_template import chart
 
 
 def main():
-    specs = Bunch(metric='median-of-root-median-squared-errors',
-                  title='Median of Root Median Squared Errors',
+    specs = Bunch(metric='median-median',
+                  title='Median of Median Errors From Folds',
                   model='ols',
                   training_periods=['30', '60', '90', '120', '150', '180',
                                     '210', '240', '270', '300', '330', '360'],

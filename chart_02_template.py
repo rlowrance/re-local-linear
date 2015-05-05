@@ -74,7 +74,7 @@ def make_control(specs, argv):
     if argv[1] == 'txt':
         # set format for the error entries in the table
         table_entry_format = \
-            '8.3f' if specs.metric == 'mean-of-fraction-wi10' else '8d'
+            '8.3f' if specs.metric == 'mean-wi10' else '8d'
     else:
         table_entry_format = None
 
@@ -169,10 +169,15 @@ def create_txt(control):
             key = (response, features, ndays)
             if key in data:
                 value = data[key]
-                if control.specs.metric == 'mean-of-fraction-wi10':
+                if control.specs.metric == 'mean-wi10':
                     return value
-                else:
+                elif control.specs.metric == 'mean-mean':
                     return int(value)
+                elif control.specs.metric == 'median-median':
+                    return int(value)
+                else:
+                    raise RuntimeError('unknown metric: ' +
+                                       control.specs.metric)
             else:
                 print 'no data for', key
                 return 0
@@ -260,11 +265,11 @@ def create_data(control):
 
     # create table containing results from each cross validation
     def cv_result_summary(cv_result):
-        if control.specs.metric == 'median-of-root-median-squared-errors':
+        if control.specs.metric == 'median-median':
             maybe_value = cv_result.median_of_root_median_squared_errors()
-        elif control.specs.metric == 'mean-of-fraction-wi10':
+        elif control.specs.metric == 'mean-wi10':
             maybe_value = cv_result.mean_of_fraction_wi10()
-        elif control.specs.metric == 'mean-of-root-mean-squared-errors':
+        elif control.specs.metric == 'mean-mean':
             maybe_value = cv_result.mean_of_root_mean_squared_errors()
         else:
             print control.specs
@@ -367,7 +372,8 @@ def chart(specs, argv):
     specs: a Bunch of specifications
     argv: the value of sys.argv from the caller (a main program)
     '''
-    pdb.set_trace()
+    if False:
+        pdb.set_trace()
     control = make_control(specs, argv)
     sys.stdout = Logger(logfile_path=control.path.out_log)
     print control

@@ -1,11 +1,4 @@
 # create files for chart-02-*
-# with these choices
-#  metric     in mean-wi10
-#  model      in ols
-#  ndays      in 30 60 ... 360
-#  predictors in ct ctlog t tlog
-#  responses  in price logprice
-#  year       in 2003on
 # invocations and files created
 #  python chart-02X.py makefile -> src/chart-02X.makefile
 #  python chart-02X.py data     -> data/working/chart-02X.data
@@ -20,14 +13,15 @@ from chart_02_template import chart
 
 
 def main():
-    specs = Bunch(metric='mean-of-fraction-wi10',
-                  title='Mean of Fraction Within 10 Percent of Actual',
-                  model='ols',
-                  training_periods=['30', '60', '90', '120', '150', '180',
-                                    '210', '240', '270', '300', '330', '360'],
-                  feature_sets=['ct', 'ctlog', 't', 'tlog'],
-                  responses=['price', 'logprice'],
-                  year='2003on')
+    specs = \
+        Bunch(metric='mean-wi10',
+              title='Mean of Fraction Within 10 Percent of Actual From Folds',
+              model='ols',
+              training_periods=['30', '60', '90', '120', '150', '180',
+                                '210', '240', '270', '300', '330', '360'],
+              feature_sets=['ct', 'ctlog', 't', 'tlog'],
+              responses=['price', 'logprice'],
+              year='2003on')
     chart(specs=specs,
           argv=sys.argv)
 
