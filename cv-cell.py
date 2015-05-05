@@ -328,6 +328,10 @@ def fit_model(train_x, train_y, control):
     elif control.model == 'quantile50':
         return Quantile50().fit(train_x, train_y)
     elif control.model == 'ransac':
+        num_samples, num_features = train_x.shape
+        if num_samples < num_features + 1:
+            # cannot fit a linear model on too few samples
+            return None
         r = linear_model.RANSACRegressor
         m = r()  # take all the defaults
         fitted = m.fit(train_x, train_y)
@@ -394,6 +398,8 @@ def fit_model(train_x, train_y, control):
 
 def predict_model(test_x, fitted, control):
     '''Return estimes'''
+    if fitted is None:
+        return None
     if control.model == 'quantile50':
         estimates = Quantile50().predict(fitted, test_x)
     else:
@@ -422,6 +428,10 @@ def make_fold_result_for_sale_date(sale_date, test, train, control):
                                        control)
     fitted = fit_model(train_x, train_y, control)
     estimates_model_units = predict_model(test_x, fitted, control)
+    if estimates_model_units is None:
+        # model could not be fit
+        # ex: in RANSAC, too few transactions relative to num of features
+        return None, None
     if control.response == 'price':
         estimates = estimates_model_units
     elif control.response == 'logprice':
@@ -475,12 +485,15 @@ def make_fold_result(fold_number, test, train, control):
                 print 'skipping this test date'
                 continue
 
-        fold_result.extend(actuals, estimates)
-        print \
-            control.command_line, \
-            fold_number, \
-            test_sale_date, \
-            len(actuals)
+        if actuals is None or estimates is None:
+            print control.command_line, fold_number, test_sale_date, None
+        else:
+            fold_result.extend(actuals, estimates)
+            print \
+                control.command_line, \
+                fold_number, \
+                test_sale_date, \
+                len(actuals)
     return fold_result
 
 
