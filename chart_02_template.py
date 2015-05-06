@@ -74,7 +74,7 @@ def make_control(specs, argv):
     if argv[1] == 'txt':
         # set format for the error entries in the table
         table_entry_format = \
-            '8.3f' if specs.metric == 'mean-wi10' else '8d'
+            '8.4f' if specs.metric == 'mean-wi10' else '8d'
     else:
         table_entry_format = None
 
