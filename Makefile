@@ -49,6 +49,7 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
+ALL += $(WORKING)/chart-04.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -76,6 +77,7 @@ include chart-02-ols-2008-act-ct-mean-mean.makefile
 include chart-02-ols-2008-act-ct-median-median.makefile
 include chart-02-ransac-2008-act-ct-median-median.makefile
 include chart-03.makefile
+include chart-04.makefile
 #include chart-04.makefile
 #include chart-05.makefile
 
@@ -124,6 +126,9 @@ chart-02-ransac-2008-act-ct-median-median.makefile: \
 #  chart-02-theilsen-median-of-root-median-squared-errors.py 
 #	python chart-02-theilsen-median-of-root-median-squared-errors.py makefile
 
+chart-04.makefile: \
+	chart-04.py
+	python chart-04.py makefile
 
 # GENERATED TEX FILES
 
