@@ -17,8 +17,8 @@ class FoldResult(object):
         '''Extend the collection of values.
 
         Args
-        actuals   1D np.array
-        estimates 1D np.array
+        actuals      1D np.array
+        estimates    1D np.array
 
         Returns: None
         '''
@@ -41,51 +41,6 @@ class FoldResult(object):
         else:
             errors_without_nans = errors[~np.isnan(errors)]
             return Maybe.Maybe(errors_without_nans)
-#
-#
-#
-#
-#    def root_mean_squared_error(self):
-#        '''Return number or NaN.'''
-#
-#        pass
-#
-#    def mean_absolute_error(self):
-#        '''Return number of NaN.'''
-#        pass
-#
-#    def reduce_errors_ignore_nans(self, reduction):
-#        '''Reduce the non-nan errors.'''
-#        errors = self.actuals - self.estimates
-#        if np.isnan(errors).all():
-#            # return NoValue, if
-#            # - errors.size == 0 OR
-#            # - every element of errors is nan
-#            # NOTE: The one test does it all
-#            return Maybe.NoValue()
-#        else:
-#            return Maybe.Maybe(reduction(errors))
-#
-#    def mean_error_ignore_nans(self):
-#        '''Return Maybe(number), ignoring actuals or estimates with Nan or Inf.
-#        '''
-#        return self.reduce_errors_ignore_nans(np.nanmean)
-#
-#    def median_error_ignore_nans(self):
-#        '''Return median error or NaN, ignoring actuals or estimates with NaN.
-#        '''
-#        return self.reduce_errors_ignore_nans(np.nanmedian)
-#
-#    def root_mean_squared_error_ignore_nans(self):
-#        errors = self._maybe_errors()
-#        if errors.has_value:
-#            # write me
-#        else:
-#            return errors
-#
-#    def mean_absolute_error_ignore_nans(self):
-#        pass
-#
 
 if __name__ == '__main__':
     import unittest
