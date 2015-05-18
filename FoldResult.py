@@ -1,4 +1,5 @@
 # system imports
+import datetime
 import numpy as np
 import pdb
 
@@ -12,6 +13,20 @@ class FoldResult(object):
     def __init__(self):
         self.actuals = np.array([])
         self.estimates = np.array([])
+        self.fitted = {}
+        self.predictor_names = {}
+
+    def save_fitted(self, date, fitted):
+        self.fitted[date] = fitted
+
+    def get_fitted(self):
+        return self.fitted
+
+    def save_predictor_names(self, date, predictor_names):
+        self.predictor_names[date] = predictor_names
+
+    def get_predictor_names(self):
+        return self.predictor_names
 
     def extend(self, actuals, estimates):
         '''Extend the collection of values.
@@ -42,8 +57,12 @@ class FoldResult(object):
             errors_without_nans = errors[~np.isnan(errors)]
             return Maybe.Maybe(errors_without_nans)
 
+
 if __name__ == '__main__':
     import unittest
+
+    if False:
+        pdb.set_trace()  # avoid warning
 
     class Test(unittest.TestCase):
 
@@ -62,6 +81,30 @@ if __name__ == '__main__':
             fr.extend(self.group2_actuals,
                       self.group2_estimates)
             self.fr = fr
+
+        def test_fitted(self):
+            # test methods .save_fitted() and .get_fitted()
+            fr = self.fr
+            fitted1 = ['a', 'b']
+            date1 = datetime.date(2015, 05, 18)
+            fr.save_fitted(date1, fitted1)
+            fitted2 = ['aa', 'bb']
+            date2 = datetime.date(2015, 05, 19)
+            fr.save_fitted(date2, fitted2)
+            fitted = fr.get_fitted()  # return a dict
+            self.assertEqual(len(fitted), 2)
+
+        def test_predictor_names(self):
+            # test methods .save_preictor_names() and .get_predictor_names()
+            fr = self.fr
+            names1 = ['a', 'b']
+            date1 = datetime.date(2015, 05, 18)
+            fr.save_predictor_names(date1, names1)
+            names2 = ['aa']
+            date2 = datetime.date(2015, 05, 19)
+            fr.save_predictor_names(date2, names2)
+            predictor_names = fr.get_predictor_names()
+            self.assertEqual(len(predictor_names), 2)
 
         def test_has_elements(self):
             me = self.fr.maybe_errors()
