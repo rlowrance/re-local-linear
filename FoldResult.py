@@ -11,10 +11,26 @@ class FoldResult(object):
     '''Computations on a cross validation fold.'''
 
     def __init__(self):
+        # vectors of results
         self.actuals = np.array([])
         self.estimates = np.array([])
+        # dictionaries of results
         self.fitted = {}
         self.predictor_names = {}
+        self.num_test = {}
+        self.num_train = {}
+
+    def save_num_test(self, date, num_test):
+        self.num_test[date] = num_test
+
+    def get_num_test(self):
+        return self.num_test
+
+    def save_num_train(self, date, num_train):
+        self.num_train[date] = num_train
+
+    def get_num_train(self):
+        return self.num_train
 
     def save_fitted(self, date, fitted):
         self.fitted[date] = fitted
@@ -105,6 +121,20 @@ if __name__ == '__main__':
             fr.save_predictor_names(date2, names2)
             predictor_names = fr.get_predictor_names()
             self.assertEqual(len(predictor_names), 2)
+
+        def test_num_test(self):
+            fr = self.fr
+            fr.save_num_test(datetime.date(2015, 05, 18), 10)
+            fr.save_num_test(datetime.date(2015, 05, 19), 20)
+            num_tests = fr.get_num_test()
+            self.assertEqual(len(num_tests), 2)
+
+        def test_num_train(self):
+            fr = self.fr
+            fr.save_num_train(datetime.date(2015, 05, 18), 10)
+            fr.save_num_train(datetime.date(2015, 05, 19), 20)
+            num_trains = fr.get_num_train()
+            self.assertEqual(len(num_trains), 2)
 
         def test_has_elements(self):
             me = self.fr.maybe_errors()
