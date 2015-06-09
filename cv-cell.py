@@ -223,6 +223,9 @@ def make_xy(test_date, test, train, control):
     transformation = features(control.predictors)
     predictor_names = transformation.keys()
 
+    # possibly mutate predictor_names by
+    #  dropping year features
+    #  adding age and age^2 features
     maybe_add_age([test, train],
                   [['YEAR.BUILT', 'age'],
                    ['EFFECTIVE.YEAR.BUILT', 'effective.age']],
@@ -236,7 +239,7 @@ def make_xy(test_date, test, train, control):
     test_x = predictors(test, predictor_names)
     train_y = response(train, control.response)
 
-    return test_x, train_x, train_y
+    return test_x, train_x, train_y, predictor_names
 
 
 def make_relevant_test(sale_date, df, control):
@@ -323,7 +326,45 @@ def fit_model(train_x, train_y, control):
             print 'fitted values'
             print 'coefficients', fitted.coef_
             print 'intercept', fitted.intercept_
-            pdb.set_trace()
+        return fitted
+    elif control.model == 'lassocv':
+        num_samples = train_x.shape[0]
+        cv = min(num_samples, 10)  # num folds in the cross validation
+        verbose = True
+        n_jobs = 1  # num CPUs, -1 ==> all
+        fit_intercept = True
+        normalize = True  # normalize regressors X before fitting
+        m = sklearn.linear_model.LassoCV(cv=cv,
+                                         verbose=verbose,
+                                         n_jobs=n_jobs,
+                                         fit_intercept=fit_intercept,
+                                         normalize=normalize)
+        fitted = m.fit(train_x, train_y)
+        if True:
+            print 'trained set shape', train_x.shape
+            print 'fitted values'
+            print 'coefficient', fitted.coef_
+            print 'intercept', fitted.intercept_
+            print fitted
+        return fitted
+    elif control.model == 'elasticnet':
+        pdb.set_trace()
+        alpha = 1.0     # multiply penalty terms by 1
+        l1_ratio = 1.0  # use L1 penalty, not L2
+        fit_intercept = True
+        normalize = False
+        normalize = True
+        m = sklearn.linear_model.ElasticNet(alpha=alpha,
+                                            l1_ratio=l1_ratio,
+                                            fit_intercept=fit_intercept,
+                                            normalize=normalize)
+        fitted = m.fit(train_x, train_y)
+        if True:
+            print 'trained set shape', train_x.shape
+            print 'fitted values'
+            print 'coefficient', fitted.coef_
+            print 'interecept', fitted.intercept_
+            print fitted
         return fitted
     elif control.model == 'quantile50':
         return Quantile50().fit(train_x, train_y)
@@ -393,6 +434,7 @@ def fit_model(train_x, train_y, control):
             pdb.set_trace()
         return fitted
     else:
+        print 'control.model: ', control.model
         raise NotImplemented('model: ' + control.model)
 
 
@@ -422,10 +464,10 @@ def make_fold_result_for_sale_date(sale_date, test, train, control):
                                                   train,
                                                   control)
     # convert DataFrames to x matrices and y vectors
-    test_x, train_x, train_y = make_xy(sale_date,
-                                       test_relevant,
-                                       train_relevant,
-                                       control)
+    test_x, train_x, train_y, predictor_names = make_xy(sale_date,
+                                                        test_relevant,
+                                                        train_relevant,
+                                                        control)
     fitted = fit_model(train_x, train_y, control)
     estimates_model_units = predict_model(test_x, fitted, control)
     if estimates_model_units is None:
@@ -439,7 +481,15 @@ def make_fold_result_for_sale_date(sale_date, test, train, control):
     else:
         raise ValueError('control.reponse: ' + control.response)
     actuals = get_actuals(test_relevant, control)
-    return actuals, estimates
+    num_test = test_x.shape[0]
+    num_train = train_x.shape[0]
+    return {'actuals': actuals,
+            'estimates': estimates,
+            'model': control.model,
+            'fitted': fitted,
+            'predictor_names': predictor_names,
+            'num_test': num_test,
+            'num_train': num_train}
 
 
 def make_sorted_test_sale_dates(df, control):
@@ -473,11 +523,10 @@ def make_fold_result(fold_number, test, train, control):
     for test_sale_date in sorted_sale_dates:
         with warnings.catch_warnings():
             try:
-                actuals, estimates = \
-                    make_fold_result_for_sale_date(test_sale_date,
-                                                   test,
-                                                   train,
-                                                   control)
+                fr = make_fold_result_for_sale_date(test_sale_date,
+                                                    test,
+                                                    train,
+                                                    control)
             except Warning as w:
                 print 'warning raised:', w
                 print 'fold_number', fold_number
@@ -485,10 +534,13 @@ def make_fold_result(fold_number, test, train, control):
                 print 'skipping this test date'
                 continue
 
+        actuals = fr['actuals']
+        estimates = fr['estimates']
         if actuals is None or estimates is None:
             print control.command_line, fold_number, test_sale_date, None
         else:
             fold_result.extend(actuals, estimates)
+            fold_result.save_raw_fold_result(test_sale_date, fr)
             print \
                 control.command_line, \
                 fold_number, \
@@ -539,6 +591,7 @@ def main():
     # read training data
     f = open(control.path_in_train, 'rb')
     df = pickle.load(f)
+    pdb.set_trace()
     f.close()
 
     # check that no sale.python_date value is not null

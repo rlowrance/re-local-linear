@@ -15,35 +15,14 @@ class FoldResult(object):
         # vectors of results
         self.actuals = np.array([])
         self.estimates = np.array([])
-        # dictionaries of results
-        self.fitted = {}
-        self.predictor_names = {}
-        self.num_test = {}
-        self.num_train = {}
+        # dictionaries of results, key = test_sale_date
+        self.raw_fold_result = {}
 
-    def save_num_test(self, date, num_test):
-        self.num_test[date] = num_test
+    def save_raw_fold_result(self, date, raw_fold_results):
+        self.raw_fold_result[date] = raw_fold_results
 
-    def get_num_test(self):
-        return self.num_test
-
-    def save_num_train(self, date, num_train):
-        self.num_train[date] = num_train
-
-    def get_num_train(self):
-        return self.num_train
-
-    def save_fitted(self, date, fitted):
-        self.fitted[date] = fitted
-
-    def get_fitted(self):
-        return self.fitted
-
-    def save_predictor_names(self, date, predictor_names):
-        self.predictor_names[date] = predictor_names
-
-    def get_predictor_names(self):
-        return self.predictor_names
+    def get_raw_fold_result(self):
+        return self.raw_fold_result
 
     def extend(self, actuals, estimates):
         '''Extend the collection of values.
