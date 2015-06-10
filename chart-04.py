@@ -1,7 +1,9 @@
-# create files for chart-04: elastic net variables in importance order
-# WORKING/chart-NN.makefile
+# create files for chart-04: lassocv (lasso with cross validation)
+# SRC/chart-NN.makefile
 # WORKING/chart-NN.data
-# WORKING/chart-NN.txt-SPECIFIC.txt
+#   dict([fold_number, sale_date, feature_name]) = number_of_models?
+# WORKING/chart-NN.SPECIFIC.txt
+#  for now, SPECIFIC={all-periods}
 
 # import built-ins and libraries
 import sys
@@ -16,8 +18,9 @@ from Logger import Logger
 
 
 def print_help():
-    print 'python chart-04.py SUFFIX'
-    print 'where SUFFIX    in {"makefile", "data", "txt"}'
+    print 'python chart-04.py WHAT_FILE [TXT_CHOICE]'
+    print 'where WHAT_FILE  in {"makefile", "data", "txt"}'
+    print 'where TXT_CHOICE in {"all-periods"}'
 
 
 def make_control(argv):
@@ -28,34 +31,40 @@ def make_control(argv):
     suffix = argv[1]
 
     # identifier for the cross validation cell we use
-    cvcell_id = 'elasticnet-logprice-ct-2003on-30'
+    cvcell_id = 'lassocv-logprice-ct-2003on-30'
+    in_file = 'transactions-subset2-train.pickle'
 
-    def make_paths():
+    def make_directories():
+        return Bunch(working=directory('working'),
+                     cells=directory('working') + 'cv-cell/')
+
+    def make_paths(directory):
         # return Bunch of paths
-        in_file = 'transactions-subset2-train.pickle'
         b = Bunch(
             cell=directory('cells') + cvcell_id + '.cvcell',
             cvcell_program='cv-cell.py',
-            data=directory('working') + base_name + '.data',
+            dir_cell=directory('working') + 'cv-cell',
             txt=directory('working') + base_name + '.txt',
             in_training=directory('working') + in_file,
             out_log=directory('log') + base_name + suffix + '.log',
             out_makefile=base_name + '.makefile')
         return b
 
-    if not(2 <= len(argv) == 2):
+    if not(2 <= len(argv) <= 3):
         print_help()
         print 'argv', argv
         raise RuntimeError('bad invocation')
 
     # supply common conrol values
     b = Bunch(debugging=False,
-              base_name=base_name,
-              cvcell_id=cvcell_id,
+              base_name=argv[0].split('.')[0],
+              cvcell_id='lassocv-logprice-ct-2003on-30',
               me=argv[0],
-              path=make_paths(),
-              suffix=suffix,
-              testing=False)
+              specific=argv[2] if len(argv) == 3 else '',
+              testing=False,
+              training_data='transactions-subset2-train.pickle',
+              txt_choices=['all-periods'],  # all possible
+              what_file=argv[1])
 
     return b
 
@@ -276,68 +285,93 @@ def create_data(control):
 
 def create_makefile(control):
     '''Write makefile to source directory.'''
-    def make_file_names():
-        '''Return list of cell names.'''
-        file_names = []
-        pdb.set_trace()
-        for response in control.specs.responses:
-            for feature_set in control.specs.feature_sets:
-                for training_period in control.specs.training_periods:
-                    cell_name = '%s-%s-%s-%s-%s' % (control.specs.model,
-                                                    response,
-                                                    feature_set,
-                                                    control.specs.year,
-                                                    training_period)
-                    file_name = '%s%s.cvcell' % (control.path.dir_cells,
-                                                 cell_name)
-                    file_names.append(file_name)
-                    if control.testing and len(file_names) > 0:
-                        return file_names
-        return file_names
+
+    def recipe(command, options):
+        result = command
+        i = 0
+        while (i < len(options)):
+            result += ' ' + options[i]
+            i += 1
+
+        return result
+
+    def rule(target, prerequisites, recipes):
+        line = target + ':'
+        for prerequesite in prerequisites:
+            line += ' ' + prerequesite
+
+        # append recipes, preceeding each with a tab character
+        lines = [line]
+        for recipe in recipes:
+            lines.append('\t' + recipe)
+
+        if True:
+            for line in lines:
+                print line
+
+        return lines
 
     def make_lines():
         '''Produce lines for makefile.
 
-        chart-02-cells = <cell1> <cell2> ...
-        chart-02.txt: chart-02.data chart-02.py
-            $(PYTHON) chart-02.py txt
-        chart-02.data: $(chart-02-cells) chart-02.py
-            $(PYTHON) chart-02.py data
-        #chart-02.makefile: chart02.py
-        #   $(PYTHON) chart-02.py makefile
+        # makefile generate by command python PGM makefile"
+        <cv-cell>: cv-cell.py <training-data>
+            $(PYTHON) cv-cell.py <cv-cell-name>
+        chart-04.SPECIFIC.txt: chart-04.data chart-04.py
+            $(PYTHON) chart-04.py txt SPECIFIC
+        chart-04.data: $(chart-04-cells) chart-04.py
+            $(PYTHON) chart-04.py data
+        #chart-04.makefile: chart04.py
+            $(PYTHON) chart-04.py makefile
         '''
+
         lines = []
-        lines.append('# makefile generated by python %s.py makefile' %
-                     control.base_name)
+        start_python = '$(PYTHON)'
+        pdb.set_trace()
+
+        # comment: how file was generated
+        lines.append('# makefile generated by python %s makefile' %
+                     control.me)
+
+        # rule to build the makefile itself
+        makefile = control.base_name + '.makefile'
+        program = control.base_name + '.py'
+        create_makefile = recipe(start_python,
+                                 [program, 'makefile'])
+        lines.extend(rule(makefile, [program], [create_makefile]))
 
         # rule to build the cross-validation cell
-        start_python = '\t$(PYTHON)'
-        lines.append('%s: %s %s' %
-                     (control.path.cell,
-                      control.path.cvcell_program,
-                      control.path.in_training))
-        lines.append('%s %s %s' %
-                     (start_python,
-                      control.path.cvcell_program,
-                      control.cvcell_id))
+        the_cell = directory('cells') + control.cvcell_id + '.cvcell'
+        training_data = directory('working') + control.training_data
+        create_cell = recipe(start_python,
+                             ['cv-cell.py', control.cvcell_id])
+        # don't rebuilt the cell if this source code file changes
+        lines.extend(rule(the_cell, [training_data], [create_cell]))
 
-        # rule to create the data for the chart
-        lines.append('%s: %s %s' %
-                     (control.path.data,
-                      control.path.cell,
-                      control.me))
-        lines.append('%s %s data' %
-                     (start_python,
-                      control.me))
+        # rule to build the data file
+        the_data = directory('working') + control.base_name + '.data'
+        create_data = recipe(start_python,
+                             [program, 'data'])
+        lines.extend(rule(the_data, [the_cell], [create_data]))
 
-        # rule to create the chart
-        lines.append('%s: %s %s' %
-                     (control.path.txt,
-                      control.path.data,
-                      control.me))
-        lines.append('%s %s txt' %
-                     (start_python,
-                      control.me))
+        # rule to build the txt files
+        pdb.set_trace()
+        for txt_choice in control.txt_choices:
+            path_to_txt_file = \
+                directory('working') + \
+                control.base_name + \
+                '.' + txt_choice +\
+                '.txt'
+            create_txt = recipe(start_python,
+                                [program, 'txt', txt_choice])
+            lines.extend(rule(path_to_txt_file,
+                              [program, the_data],
+                              [create_txt]))
+
+        # phony targets (for development)
+        phony_data = 'chart-04.data'
+        lines.extend(rule('.PHONY', [phony_data], []))
+        lines.extend(rule(phony_data, [the_data], []))
 
         return lines
 
@@ -347,7 +381,9 @@ def create_makefile(control):
         for line in lines:
             print line
 
-    f = open(control.path.out_makefile, 'w')
+    pdb.set_trace()
+    path = control.base_name + '.makefile'
+    f = open(path, 'w')
     for line in lines:
         f.write(line)
         f.write('\n')
@@ -355,7 +391,7 @@ def create_makefile(control):
 
 
 def chart(specs, argv):
-    '''create files for charts 02-X
+    '''create files for charts 04-X
     ARGS
     specs: a Bunch of specifications
     argv: the value of sys.argv from the caller (a main program)
@@ -385,15 +421,19 @@ def chart(specs, argv):
 
 
 def main():
+    pdb.set_trace()
     control = make_control(sys.argv)
-    sys.stdout = Logger(logfile_path=control.path.out_log)
+    path = \
+        directory('log') + \
+        control.base_name + '.' + control.what_file + '.log'
+    sys.stdout = Logger(logfile_path=path)  # print x now logs and prints x
     print control
 
-    if control.suffix == 'makefile':
+    if control.what_file == 'makefile':
         create_makefile(control)
-    elif control.suffix == 'data':
+    elif control.what_file == 'data':
         create_data(control)
-    elif control.suffix == 'txt':
+    elif control.what_file == 'txt':
         create_txt(control)
     else:
         print_help()
