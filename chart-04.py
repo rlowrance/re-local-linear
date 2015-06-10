@@ -26,30 +26,6 @@ def print_help():
 def make_control(argv):
     # return a Bunch
 
-    # derive fields from the invocation
-    base_name = argv[0].split('.')[0]
-    suffix = argv[1]
-
-    # identifier for the cross validation cell we use
-    cvcell_id = 'lassocv-logprice-ct-2003on-30'
-    in_file = 'transactions-subset2-train.pickle'
-
-    def make_directories():
-        return Bunch(working=directory('working'),
-                     cells=directory('working') + 'cv-cell/')
-
-    def make_paths(directory):
-        # return Bunch of paths
-        b = Bunch(
-            cell=directory('cells') + cvcell_id + '.cvcell',
-            cvcell_program='cv-cell.py',
-            dir_cell=directory('working') + 'cv-cell',
-            txt=directory('working') + base_name + '.txt',
-            in_training=directory('working') + in_file,
-            out_log=directory('log') + base_name + suffix + '.log',
-            out_makefile=base_name + '.makefile')
-        return b
-
     if not(2 <= len(argv) <= 3):
         print_help()
         print 'argv', argv
