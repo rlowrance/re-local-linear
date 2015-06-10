@@ -355,7 +355,6 @@ def create_makefile(control):
         for line in lines:
             print line
 
-    pdb.set_trace()
     path = control.base_name + '.makefile'
     f = open(path, 'w')
     for line in lines:
