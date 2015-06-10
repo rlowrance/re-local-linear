@@ -6,10 +6,11 @@
 #  for now, SPECIFIC={all-periods}
 
 # import built-ins and libraries
-import sys
-import pdb
+import collections
 import cPickle as pickle
 import os.path
+import pdb
+import sys
 
 # import my stuff
 from Bunch import Bunch
@@ -203,16 +204,6 @@ def create_data(control):
      value = scalar value from each fold
     '''
 
-    def make_file_path(response, predictor, training_days, control):
-        '''Return string containing file name.
-        '''
-        cell_file_name = '%s-%s-%s-%s-%s.cvcell' % (control.specs.model,
-                                                    response,
-                                                    predictor,
-                                                    control.specs.year,
-                                                    training_days)
-        return control.path.dir_cells + cell_file_name
-
     def get_cv_result(file_path):
         '''Return CvResult instance.'''
         f = open(file_path, 'rb')
@@ -233,27 +224,43 @@ def create_data(control):
             raise RuntimeError('unknown metric: ' + control.specs.metric)
         return maybe_value.value if maybe_value.has_value else None
 
-    data = {}
-    for response in control.specs.responses:
-        for feature_set in control.specs.feature_sets:
-            for training_period in control.specs.training_periods:
-                file_path = make_file_path(response,
-                                           feature_set,
-                                           training_period,
-                                           control)
-                key = (response, feature_set, training_period)
-                if os.path.isfile(file_path):
-                    cv_result = get_cv_result(file_path)
-                    data[key] = cv_result_summary(cv_result)
-                else:
-                    print 'no file for', response, feature_set, training_period
-                    raise RuntimeError('missing file: ' + file_path)
+    # key = (fold_number, sale_date) value = num test transactions
+    num_tests = collections.defaultdict(int)
+    # key = (fold_number, sale_date, predictor_name) value = coefficient
+    test_coef = {}
 
-    # write the data (so that its in the log)
-    for k, v in data.iteritems():
-        print k, v
+    path = directory('cells') + control.cvcell_id + '.cvcell'
+    cv_result = get_cv_result(path)  # a CvResult instance
+    num_folds = len(cv_result.fold_results)
+    for fold_number in xrange(num_folds):
+        fold_result = cv_result.fold_results[fold_number]
+        fold_actuals = fold_result.actuals
+        fold_estimates = fold_result.estimates
+        fold_raw = fold_result.raw_fold_result
+        for sale_date, fitted_model in fold_raw.iteritems():
+            # sale_date_num_train = fitted_model['num_train']
+            # sale_date_estimates = fitted_model['estimates']
+            # sale_date_actuals = fitted_model['estimates']
+            sale_date_predictor_names = fitted_model['predictor_names']
+            sale_date_num_test = fitted_model['num_test']
+            # sale_date_model = fitted_model['model']
+            sale_date_fitted = fitted_model['fitted']
 
-    path = control.path.out_output
+
+            # extract info from the fitted_model
+            num_tests[(fold_number, sale_date)] += sale_date_num_test
+
+            # save each coefficient
+            sale_date_coef = sale_date_fitted.coef_
+            assert(len(sale_date_coef) == len(sale_date_predictor_names))
+            for i in xrange(len(sale_date_coef)):
+                key = (fold_number, sale_date, sale_date_predictor_names[i])
+                test_coef[key] = sale_date_coef[i]
+
+    # write the data
+    pdb.set_trace()
+    data = {'num_tests': num_tests, 'test_coef': test_coef}
+    path = directory('working') + control.base_name + '.data'
     f = open(path, 'wb')
     pickle.dump(data, f)
     f.close()
