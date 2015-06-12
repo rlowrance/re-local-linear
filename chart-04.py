@@ -3,12 +3,13 @@
 # WORKING/chart-NN.data
 #   dict([fold_number, sale_date, feature_name]) = number_of_models?
 # WORKING/chart-NN.SPECIFIC.txt
-#  for now, SPECIFIC={all-periods}
+#  for now, SPECIFIC={all-periods, by-year, ranked-by-year, ranked-by-quarter,
+#                     ranked_by_month}
 
 # import built-ins and libraries
 import collections
 import cPickle as pickle
-import os.path
+import operator
 import pdb
 import sys
 
@@ -21,7 +22,7 @@ from Logger import Logger
 def print_help():
     print 'python chart-04.py WHAT_FILE [TXT_CHOICE]'
     print 'where WHAT_FILE  in {"makefile", "data", "txt"}'
-    print 'where TXT_CHOICE in {"all-periods"}'
+    print 'where TXT_CHOICE in {"all-periods", "by-year"}'
 
 
 def make_control(argv):
@@ -40,158 +41,330 @@ def make_control(argv):
               specific=argv[2] if len(argv) == 3 else '',
               testing=False,
               training_data='transactions-subset2-train.pickle',
-              txt_choices=['all-periods'],  # all possible
+              txt_choices=('all-periods',   # all possible
+                           'by-year',
+                           'ranked-by-year',
+                           'ranked-by-quarter',
+                           'ranked-by-month'),
               what_file=argv[1])
 
     return b
 
 
-class Report(object):
-
-    def __init__(self, lines, table_entry_format):
-        self.lines = lines
-        self.format_header = '{:>9s}' + (' {:>8s}' * 8)
-        self.format_detail = '{:9d}' + ((' {:%s}' % table_entry_format) * 8)
-        self.format_legend = '{:80s}'
-
-    def header(self, c0, c1, c2, c3, c4, c5, c6, c7, c8):
-        print c0, c1, c2, c3, c4, c5, c6, c7, c8
-        s = self.format_header.format(c0, c1, c2, c3, c4, c5, c6, c7, c8)
-        self.lines.append(s)
-
-    def detail(self, ndays, *clist):
-        # replace large column values with all 9's
-        print ndays, clist
-        large_value = 99999999
-        capped = [x if x <= large_value else large_value
-                  for x in clist]
-        s = self.format_detail.format(ndays,
-                                      capped[0],
-                                      capped[1],
-                                      capped[2],
-                                      capped[3],
-                                      capped[4],
-                                      capped[5],
-                                      capped[6],
-                                      capped[7])
-        # s = self.format_detail.format(ndays, c1, c2, c3, c4, c5, c6, c7, c8)
-        self.lines.append(s)
-
-    def legend(self, txt):
-        print 'legend', txt
-        s = self.format_legend.format(txt)
-        self.lines.append(s)
-
-
 def create_txt(control):
-    '''Return list of lines that are chart 02.txt.
-    '''
-    def append_description(lines):
-        '''Append header lines'''
-        lines.append(control.specs.title)
-        lines.append('From 10-fold Cross Validation')
-        lines.append(' ')
-        lines.append('Model: ' + control.specs.model)
-        lines.append('Time period: ' + control.specs.year)
-        lines.append(' ')
+    '''Create all of the txt files'''
 
-    def read_data():
-        '''Return correct data dict built by create_data() function.'''
-        path = control.path.dir_working + control.base_name + '.data'
-        f = open(path, 'rb')
-        data = pickle.load(f)
-        f.close()
-        return data
+    class Report(object):
+        def __init__(self):
+            self.lines = []
 
-    def append_header(t):
-        t.header('response:',
-                 'price', 'price', 'price', 'price',
-                 'logprice', 'logprice', 'logprice', 'logprice')
-        t.header('features:',
-                 control.specs.feature_sets[0],
-                 control.specs.feature_sets[1],
-                 control.specs.feature_sets[2],
-                 control.specs.feature_sets[3],
-                 control.specs.feature_sets[0],
-                 control.specs.feature_sets[1],
-                 control.specs.feature_sets[2],
-                 control.specs.feature_sets[3])
-        t.header('ndays', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ')
+        def append(self, line):
+            self.lines.append(line)
+            print line
 
-    def append_detail_line(report, data, ndays):
-        def v(response, features):
-            '''Return int or 0, the value in the report.
-            '''
-            # features := predictor
-            # shortened, so save one column in the printout
-            key = (response, features, ndays)
-            if key in data:
-                value = data[key]
-                if control.specs.metric == 'mean-wi10':
-                    return value
-                elif control.specs.metric == 'mean-mean':
-                    return int(value)
-                elif control.specs.metric == 'median-median':
-                    return int(value)
-                else:
-                    raise RuntimeError('unknown metric: ' +
-                                       control.specs.metric)
-            else:
-                print 'no data for', key
-                return 0
+        def extend(self, lines):
+            self.lines.extend(lines)
+            for line in lines:
+                print line
 
-        report.detail(int(ndays),
-                      v('price', control.specs.feature_sets[0]),
-                      v('price', control.specs.feature_sets[1]),
-                      v('price', control.specs.feature_sets[2]),
-                      v('price', control.specs.feature_sets[3]),
-                      v('logprice', control.specs.feature_sets[0]),
-                      v('logprice', control.specs.feature_sets[1]),
-                      v('logprice', control.specs.feature_sets[2]),
-                      v('logprice', control.specs.feature_sets[3]))
+        def write(self, path):
+            f = open(path, 'w')
+            for line in self.lines:
+                f.write(line)
+                f.write('\n')
+            f.close()
 
-    def append_detail_lines(report, values):
-        '''Append body lines to report using values.'''
+    def make_counts(num_tests, test_coef):
+        # ARGS
+        #  num_tests[(fold_number, sale_date)] -> count
+        #  test_coef[(fold_number, sale_date, predictor_name)] -> coefficient
+        # return num_fitted_models, predictors_ordered, Bunch of non_zero_counts
 
-        # one line for each training period
-        for ndays in control.specs.training_periods:
-            append_detail_line(report, values, ndays)
+        num_fitted_models = 0  # across all folds
+        for fold_number, sale_date in num_tests.iteritems():
+            num_fitted_models += 1
 
-    feature_set_desc = \
-        dict(act='features derived from accessor, census, and taxroll data',
-             actlog='like at, but size features in log domain',
-             ct='features derived from census and taxroll data',
-             ctlog='like ct, but size features in log domain',
-             t='features derived from taxroll data',
-             tlog='like t, but size features in log domain'
-             )
+        by_predictor = collections.defaultdict(int)
+        by_predictor_month = collections.defaultdict(int)
+        by_predictor_quarter = collections.defaultdict(int)
+        by_predictor_year = collections.defaultdict(int)
+        by_year = collections.defaultdict(int)
 
-    def append_legend_lines(report):
-        # print legend describing features sets actually used
-        def r(s):
-            report.legend(s)
+        month_to_quarter = (1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4)
 
-        r(' ')
-        r('features set definitions')
-        for feature_set in control.specs.feature_sets:
-            r(feature_set + ': ' + feature_set_desc[feature_set])
-        r(' ')
+        for k, coefficient in test_coef.iteritems():
+            fold_number, sale_date, predictor = k
+            year = sale_date.year
+            month = sale_date.month
+            quarter = month_to_quarter[month - 1]
 
-    def write_lines(lines):
-        f = open(control.path.out_output, 'w')
-        for line in lines:
-            f.write(line)
-            f.write('\n')
-        f.close()
+            if coefficient != 0:
+                by_predictor[predictor] += 1
+                by_predictor_month[(predictor, month)] += 1
+                by_predictor_quarter[(predictor, quarter)] += 1
+                by_predictor_year[(predictor, year)] += 1
+                by_year[year] += 1
 
-    lines = []
-    append_description(lines)
-    report = Report(lines, control.table_entry_format)
-    append_header(report)
-    data = read_data()
-    append_detail_lines(report, data)
-    append_legend_lines(report)
-    write_lines(lines)
+        # sort predictors in order of popularity
+        sorted_by_predictor = \
+            sorted(by_predictor.items(),
+                   key=operator.itemgetter(1),
+                   reverse=True)
+
+        predictors_ordered = []
+        for predictor, count in sorted_by_predictor:
+            predictors_ordered.append(predictor)
+
+        b = Bunch(by_predictor=by_predictor,
+                  by_predictor_month=by_predictor_month,
+                  by_predictor_quarter=by_predictor_quarter,
+                  by_predictor_year=by_predictor_year,
+                  by_year=by_year)
+
+        return num_fitted_models, predictors_ordered, b
+
+    def txt_path(txt_choice):
+        return \
+            directory('working') + \
+            control.base_name + \
+            '.' + \
+            txt_choice + \
+            '.txt'
+
+    def nz_count_all_periods(title,
+                             num_fitted_models,
+                             predictors_ordered,
+                             counts):
+        report = Report()
+        report.append(title)
+        report.append('For All Periods')
+
+        format_header = '%25s %8s'
+        format_data = '%25s %8.4f'
+
+        report.append(format_header % ('predictor', '%'))
+        for predictor in predictors_ordered:
+
+            def percent(predictor):
+                numerator = counts.by_predictor[predictor]
+                return 100.0 * (numerator * 1.0) / num_fitted_models
+
+            report.append(format_data % (predictor, percent(predictor)))
+        report.write(txt_path('nz-count-all-periods'))
+
+    def nz_count_by_year(title, num_fitted_models, predictors_ordered, counts):
+        report = Report()
+        report.append(title)
+        report.append('By Sale Date Year')
+
+        num_years = 7  # 2003, 2004, 2005, 2006, 2007, 2008, 2009
+        format_header = '%25s' + (' %4d' * num_years) + ' %5s'
+        format_data = '%25s' + (' %4.1f' * num_years) + ' %5.1f'
+
+        report.append(format_header % ('predictor name',
+                                       2003, 2004, 2005, 2006, 2007, 2008, 2009,
+                                       'All'))
+
+        class Percent(object):
+            def __init__(self):
+                self.total = 0.0
+
+            def percent(self, predictor, year):
+                numerator = counts.by_predictor_year[(predictor, year)]
+                result = 100.0 * (numerator * 1.0) / num_fitted_models
+                self.total += result
+                return result
+
+        for predictor in predictors_ordered:
+
+            def percent(self, predictor, year):
+                numerator = counts.by_predictor_year[(predictor, year)]
+                result = 100.0 * (numerator * 1.0) / num_fitted_models
+                self.total += result
+                return result
+
+            p = Percent()
+            report.append(format_data % (predictor,
+                                         p.percent(predictor, 2003),
+                                         p.percent(predictor, 2004),
+                                         p.percent(predictor, 2005),
+                                         p.percent(predictor, 2006),
+                                         p.percent(predictor, 2007),
+                                         p.percent(predictor, 2008),
+                                         p.percent(predictor, 2009),
+                                         p.total))
+        report.write(txt_path('nz-count-by-year'))
+
+    def ranked_by_year(titles, num_fitted_models, predictors_ordered, counts):
+        report = Report()
+        report.extend(titles)
+        report.append('By Sale Date Year')
+
+        years = (2003, 2004, 2005, 2006, 2007, 2008, 2009)
+        num_years = len(years)
+
+        # build the rank table, which has the rankings of each predictor by year
+        rank = {}  # key = (year, predictor)
+        for year in years:
+            nz_count = {}  # key = predictor
+            for predictor in predictors_ordered:
+                c = counts.by_predictor_year[(predictor, year)]
+                nz_count[predictor] = c
+            # produce list of tuples sorted by value
+            s = sorted(nz_count.items(),
+                       key=operator.itemgetter(1),
+                       reverse=True)
+            rank_number = 1
+            for predictor, _ in s:
+                rank[(year, predictor)] = rank_number
+                rank_number += 1
+
+        # print the rank table
+        format_header = '%25s' + (' %4d' * num_years) + ' %4s'
+        format_data = '%25s' + (' %4d' * num_years) + ' %4d'
+
+        report.append(format_header % ('predictor',
+                                       2003, 2004, 2005, 2006, 2007, 2008, 2009,
+                                       'all'))
+        overall_rank = 1
+        for predictor in predictors_ordered:
+            report.append(format_data % (predictor,
+                                         rank[(2003, predictor)],
+                                         rank[(2004, predictor)],
+                                         rank[(2005, predictor)],
+                                         rank[(2006, predictor)],
+                                         rank[(2007, predictor)],
+                                         rank[(2008, predictor)],
+                                         rank[(2009, predictor)],
+                                         overall_rank))
+            overall_rank += 1
+        report.write(txt_path('ranked-by-year'))
+
+    def ranked_by_quarter(titles,
+                          num_fitted_models,
+                          predictors_ordered,
+                          counts):
+        report = Report()
+        report.extend(titles)
+        report.append('By Sale Date Quarter')
+
+        quarters = (1, 2, 3, 4)
+        num_quarters = len(quarters)
+
+        # build the rank table, which has the rankings of each predictor by year
+        rank = {}  # key = (quarter, predictor)
+        for quarter in quarters:
+            nz_count = {}  # key = predictor
+            for predictor in predictors_ordered:
+                c = counts.by_predictor_quarter[(predictor, quarter)]
+                nz_count[predictor] = c
+            # produce list of tuples sorted by value
+            s = sorted(nz_count.items(),
+                       key=operator.itemgetter(1),
+                       reverse=True)
+            rank_number = 1
+            for predictor, _ in s:
+                rank[(quarter, predictor)] = rank_number
+                rank_number += 1
+
+        # print the rank table
+        format_header = '%25s' + ('   Q%1d' * num_quarters) + ' %4s'
+        format_data = '%25s' + (' %4d' * num_quarters) + ' %4d'
+
+        report.append(format_header % ('predictor',
+                                       1, 2, 3, 4,
+                                       'all'))
+        overall_rank = 1
+        for predictor in predictors_ordered:
+            report.append(format_data % (predictor,
+                                         rank[(1, predictor)],
+                                         rank[(2, predictor)],
+                                         rank[(3, predictor)],
+                                         rank[(4, predictor)],
+                                         overall_rank))
+            overall_rank += 1
+        report.write(txt_path('ranked-by-quarter'))
+
+    def ranked_by_month(titles,
+                        num_fitted_models,
+                        predictors_ordered,
+                        counts):
+        report = Report()
+        report.extend(titles)
+        report.append('By Sale Date Month')
+
+        month_names = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+        num_months = len(month_names)
+
+        # build the rank table, which has the rankings of each predictor by year
+        rank = {}  # key = (month, predictor)
+        for month_index in xrange(len(month_names)):
+            month_number = month_index + 1  # 1 ,2, ..., 12
+            nz_count = {}  # key = predictor
+            for predictor in predictors_ordered:
+                c = counts.by_predictor_month[(predictor, month_number)]
+                nz_count[predictor] = c
+            # produce list of tuples sorted by value
+            s = sorted(nz_count.items(),
+                       key=operator.itemgetter(1),
+                       reverse=True)
+            rank_number = 1
+            for predictor, _ in s:
+                rank[(month_number, predictor)] = rank_number
+                rank_number += 1
+
+        # print the rank table
+        format_header = '%25s' + (' %3s' * num_months) + ' %3s'
+        format_data = '%25s' + (' %3d' * num_months) + ' %3d'
+
+        def mn(i):
+            return month_names[i]
+
+        report.append(format_header % ('predictor',
+                                       mn(0), mn(1), mn(2),
+                                       mn(3), mn(4), mn(5),
+                                       mn(6), mn(7), mn(8),
+                                       mn(9), mn(10), mn(11),
+                                       'all'))
+
+        overall_rank = 1
+        for predictor in predictors_ordered:
+            def r(i):
+                return rank[(i, predictor)]
+
+            report.append(format_data % (predictor,
+                                         r(1), r(2), r(3),
+                                         r(4), r(5), r(6),
+                                         r(7), r(8), r(9),
+                                         r(10), r(11), r(12),
+                                         overall_rank))
+            overall_rank += 1
+        report.write(txt_path('ranking-by-month'))
+
+    # read the data
+    path = directory('working') + control.base_name + '.data'
+    f = open(path, 'rb')
+    data = pickle.load(f)
+    f.close()
+
+    # parse data
+    num_tests = data['num_tests']
+    test_coef = data['test_coef']
+    del data
+
+    num_fitted_models, predictors_ordered, counts = \
+        make_counts(num_tests, test_coef)
+
+    title = 'Percent of All Models with Non-Zero Coefficients'
+    nz_count_all_periods(title, num_fitted_models, predictors_ordered, counts)
+    nz_count_by_year(title, num_fitted_models, predictors_ordered, counts)
+
+    titles = ('Ranking for Inclusion of Predictors In Models',
+              'Ranking = 1: Most Frequently Included Predictor')
+    ranked_by_year(titles, num_fitted_models, predictors_ordered, counts)
+    ranked_by_quarter(titles, num_fitted_models, predictors_ordered, counts)
+    ranked_by_month(titles, num_fitted_models, predictors_ordered, counts)
 
 
 def create_data(control):
@@ -234,8 +407,8 @@ def create_data(control):
     num_folds = len(cv_result.fold_results)
     for fold_number in xrange(num_folds):
         fold_result = cv_result.fold_results[fold_number]
-        fold_actuals = fold_result.actuals
-        fold_estimates = fold_result.estimates
+        # fold_actuals = fold_result.actuals
+        # fold_estimates = fold_result.estimates
         fold_raw = fold_result.raw_fold_result
         for sale_date, fitted_model in fold_raw.iteritems():
             # sale_date_num_train = fitted_model['num_train']
@@ -245,7 +418,6 @@ def create_data(control):
             sale_date_num_test = fitted_model['num_test']
             # sale_date_model = fitted_model['model']
             sale_date_fitted = fitted_model['fitted']
-
 
             # extract info from the fitted_model
             num_tests[(fold_number, sale_date)] += sale_date_num_test
@@ -371,7 +543,6 @@ def create_makefile(control):
 
 
 def main():
-    pdb.set_trace()
     control = make_control(sys.argv)
     path = \
         directory('log') + \
