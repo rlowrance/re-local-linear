@@ -49,7 +49,7 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
-ALL += $(WORKING)/chart-04.all-periods.txt
+ALL += $(WORKING)/chart-04.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
@@ -65,7 +65,7 @@ $(WORKING)/python-dependencies.makefile: python-dependencies.py
 $(CVCELL)/%.cvcell:
 	$(PYTHON) cv-cell.py $*
 
-# CHARTS
+# rules for CHARTS
 include chart-01.makefile
 include chart-02-ols-2003on-ct-t-mean-mean.makefile
 include chart-02-ols-2003on-ct-t-mean-wi10.makefile
