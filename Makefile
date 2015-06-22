@@ -35,7 +35,8 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 #ALL += $(WORKING)/parcels-derived-features.RData
 #ALL += $(WORKING)/parcels-sfr.RData
 #ALL += $(WORKING)/transactions.RData
-#ALL += $(WORKING)/transactions-subset2.pickle
+ALL += $(WORKING)/transactions-subset2.csv
+ALL += $(WORKING)/transactions-subset2.pickle
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/chart-01.pdf
@@ -51,10 +52,23 @@ ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/chart-04.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
+#ALL += $(WORKING)/transactions-subset2-rescaled.csv
 #ALL += $(WORKING)/python-dependencies.makefile
 
 all: $(ALL)
 
+$(WORKING)/transactions-subset2.csv: \
+	unpickle-transactions-subset2.py $(WORKING)/transactions-subset2.pickle
+	python unpickle-transactions-subset2.py \
+		< $(WORKING)/transactions-subset2.pickle \
+		> $(WORKING)/transactions-subset2.csv
+
+$(WORKING)/transactions-subset2-rescaled.csv: \
+	rescale.py $(WORKING)/transactions-subset2.csv
+	python rescale.py \
+		< $(WORKING)/transactions-subset2.csv \
+		> $(WORKING)/transactions-subset2-rescaled.csv
+	
 # dependencies found in python source files
 include $(WORKING)/python-dependencies.makefile
 
@@ -171,7 +185,6 @@ $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
 	Rscript transactions.R
 
 $(WORKING)/transactions-subset2.pickle \
-$(WORKING)/transactions-subset2.csv \
 : $(WORKING)/transactions.csv transactions-subset2.py
 	$(PYTHON) transactions-subset2.py
 
