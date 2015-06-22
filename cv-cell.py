@@ -71,7 +71,7 @@ class Control(Record):
             raise RuntimeError('unknown predictors:' + self.predictors)
 
         self.path_out = cvcell + arg1 + '.cvcell'
-        self.path_out_log = log + me + arg1 + '.log'
+        self.path_out_log = log + me + '-' + arg1 + '.log'
         self.path_in_train = working + 'transactions-subset2-train.pickle'
 
         self.command_line = arg1
@@ -591,7 +591,6 @@ def main():
     # read training data
     f = open(control.path_in_train, 'rb')
     df = pickle.load(f)
-    pdb.set_trace()
     f.close()
 
     # check that no sale.python_date value is not null

@@ -91,7 +91,7 @@ include chart-02-ols-2008-act-ct-mean-mean.makefile
 include chart-02-ols-2008-act-ct-median-median.makefile
 include chart-02-ransac-2008-act-ct-median-median.makefile
 include chart-03.makefile
-include chart-04.makefile
+#include chart-04.makefile
 #include chart-04.makefile
 #include chart-05.makefile
 
