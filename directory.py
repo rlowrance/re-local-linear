@@ -12,8 +12,10 @@ def directory(name):
     '''
 
     root = '../'
-    if name == 'cells':
+    if name == 'cells' or name == 'cv-cell' or name == 'cv-cell-natural':
         return root + 'data/working/cv-cell/'
+    elif name == 'cv-cell-rescaled':
+        return root + 'data/working/cv-cell-rescaled/'
     elif name == 'input':
         return root + 'data/input/'
     elif name == 'log':
