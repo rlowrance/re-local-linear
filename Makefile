@@ -8,6 +8,7 @@ PYTHON = ~/anaconda/bin/python
 INPUT = ../data/input
 WORKING = ../data/working
 CVCELL = ../data/working/cv-cell
+CVCELLRESCALED = ../data/working/cv-cell-rescaled
 
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F1.zip
 INPUT_DEEDS += $(INPUT)/corelogic-deeds-090402_07/CAC06037F2.zip
@@ -51,6 +52,7 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
+ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/transactions-subset2-rescaled.csv
 #ALL += $(WORKING)/python-dependencies.makefile
@@ -152,6 +154,17 @@ example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
 #$(info example $(example))
 $(example): chart-04.py $(cvcell)
 	python chart-04.py --in $(cvcell) --cache --units $(units)
+
+cvcellrescaled = $(CVCELLRESCALED)/lassocv-logprice-ct-2003on-30.cvcell
+units = rescaled
+example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
+$(info cvcellrescaled  $(cvcell))
+$(info units           $(units))
+$(info example         $(example))
+$(example): chart-04.py $(cvcellrescaled)
+	python chart-04.py --in $(cvcellrescaled) --cache --units $(units)
+
+
 
 # recipe to delete the cache and chart files
 # TODO: delete all the chart-04 files, after replicated prior result
