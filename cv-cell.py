@@ -1,15 +1,21 @@
-# create file WORKING/CV-CELL/<command line argument>
-#
-# COMMAND LINE ARGUMENT is one positional in this format:
-# MODEL-RESPONSE-PREDICTORS-YEARS-DAYS
+# create a cross validation cell, a file *.cvcell containing cv results
+# invocation: MODEL-RESPONSE-PREDICTORS-YEARS-DAYS --in PATHIN --out PATHOUT
 # where
-# MODEL is one of {ols}
-# RESPONSE is one of {price, logprice}
-# PREDICTORS is an argument to function features
-# TESTYEARS is one of {2008, 2003on}
+# MODEL specifies the model, one of {ols, lassocv, ...}
+# RESPONSE specifies the response feature, one of {price, logprice}
+# PREDICTORS is an argument to function features {ct, act, ...}
+# YEARS is one of {2008, 2003on}
 # TRAININGDAYS is one of {30, 60, ..., 360}
+# INPATH is the path to the input transactions file
+#        default=WORKING/transactions-subset2.pickle
+# OUTPUT is the path to the output cross validations file
+#        defaul=WORKING/cvcell/MODEL-RESPONSE-PREDICTORS-YEARS-DAYS.cvcell
+
+# NOTE: The default paths are provided to maintain backwards compatibility
+# with existing Makefiles.
 
 # import built-ins and libraries
+import datetime
 import sys
 import pdb
 import cPickle as pickle
@@ -19,73 +25,98 @@ import sklearn
 # import statsmodels.api as sm
 from statsmodels.regression.quantile_regression import QuantReg
 import numpy as np
-import datetime
 import pandas as pd
 import warnings
 
 # import my stuff
+from Bunch import Bunch
 from directory import directory
 from features import features
 from Logger import Logger
 from CvResult import CvResult
 from FoldResult import FoldResult
-from Record import Record
+import parse_command_line
 
 
-def print_calling_sequence():
-    print 'argument: RESPONSE-PREDICTORS-MODEL-YEAR-NDAYS'
+def default(argv, tag, default_value):
+    pdb.set_trace()
+    actual = parse_command_line.get_arg(argv, tag)
+    return default_value if actual is None else actual
 
 
-class Control(Record):
-    def __init__(self, arguments):
-        Record.__init__(self, 'control')
+def make_control(argv):
+    # return a Bunch
 
-        me = 'cv-cell'
+    pdb.set_trace()
+    script_name = argv[0]
+    cell_specifier = argv[1]
 
-        working = directory('working')
-        log = directory('log')
-        cvcell = working + 'cv-cell/'
+    default_in = directory('working') + 'transactions-subset2.pickle'
+    default_out = directory('cv-cell') + argv[1] + '.cvcell'
+    model, response, predictors, years, days = cell_specifier.split('-')
 
-        # confirm that exactly one argument
-        if len(arguments) != 2:
-            print_calling_sequence()
-            raise RuntimeError('need exactly one positional argument')
-
-        # parse the positional argument
-        arg1 = arguments[1]
-        splits = arg1.split('-')
-        if len(splits) != 5:
-            print_calling_sequence()
-            raise RuntimeError('bad invocation argument: ' + arg1)
-        self.model = splits[0]
-        self.response = splits[1]
-        self.predictors = splits[2]
-        self.test_years = splits[3]
-        self.training_days = splits[4]
-
-        # make sure that PREDICTORS is known
-        try:
-            features(self.predictors)
-        except RuntimeError:
-            print_calling_sequence()
-            raise RuntimeError('unknown predictors:' + self.predictors)
-
-        self.path_out = cvcell + arg1 + '.cvcell'
-        self.path_out_log = log + me + '-' + arg1 + '.log'
-        self.path_in_train = working + 'transactions-subset2-train.pickle'
-
-        self.command_line = arg1
-        self.n_folds = 10
-
-        # make random numbers reproducable
-        self._random_seed = 123  # don't use this, define just for documentation
-        # create np.random.RandomState instance
-        self.random_state = sklearn.utils.check_random_state(self._random_seed)
-
-        self.testing = False
-        self.debugging = False
-        # eliminate null is input column sale.python_date
-        self.debugging_sale_python_date = False
+    b = Bunch(debugging=False,
+              testing=False,
+              now=datetime.datetime.now(),
+              base_name=script_name.split('.')[0],
+              me=script_name,
+              arg_in=default(argv, '--in', default_in),
+              arg_out=default(argv, '--out', default_out),
+              arg_model=model,
+              arg_response=response,
+              arg_predictors=predictors,
+              arg_years=years,
+              arg_days=days)
+    return b
+#
+#        Record.__init__(self, 'control')
+#
+#        me = 'cv-cell'
+#
+#        working = directory('working')
+#        log = directory('log')
+#        cvcell = working + 'cv-cell/'
+#
+#        # confirm that exactly one argument
+#        if len(arguments) != 2:
+#            print_calling_sequence()
+#            raise RuntimeError('need exactly one positional argument')
+#
+#        # parse the positional argument
+#        arg1 = arguments[1]
+#        splits = arg1.split('-')
+#        if len(splits) != 5:
+#            print_calling_sequence()
+#            raise RuntimeError('bad invocation argument: ' + arg1)
+#        self.model = splits[0]
+#        self.response = splits[1]
+#        self.predictors = splits[2]
+#        self.test_years = splits[3]
+#        self.training_days = splits[4]
+#
+#        # make sure that PREDICTORS is known
+#        try:
+#            features(self.predictors)
+#        except RuntimeError:
+#            print_calling_sequence()
+#            raise RuntimeError('unknown predictors:' + self.predictors)
+#
+#        self.path_out = cvcell + arg1 + '.cvcell'
+#        self.path_out_log = log + me + '-' + arg1 + '.log'
+#        self.path_in_train = working + 'transactions-subset2-train.pickle'
+#
+#        self.command_line = arg1
+#        self.n_folds = 10
+#
+#        # make random numbers reproducable
+#        self._random_seed = 123  # don't use this, define just for documentation
+#        # create np.random.RandomState instance
+#        self.random_state = sklearn.utils.check_random_state(self._random_seed)
+#
+#        self.testing = False
+#        self.debugging = False
+#        # eliminate null is input column sale.python_date
+#        self.debugging_sale_python_date = False
 
 
 def relevant_test(df, test_years):
@@ -583,9 +614,13 @@ def make_cv_result(df, control):
 
 def main():
 
+    pdb.set_trace()
     warnings.filterwarnings('error')
-    control = Control(sys.argv)
-    sys.stdout = Logger(logfile_path=control.path_out_log)
+    control = make_control(sys.argv)
+    path = \
+        directory('log') + \
+        control.base_name + '.' + control.now.isoformat('T') + '.log'
+    sys.stdout = Logger(logfile_path=path)  # print x now logs and prints x
     print control
 
     # read training data
