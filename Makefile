@@ -50,7 +50,7 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
-ALL += $(WORKING)/chart-04.nz-count-all-periods.txt
+ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/transactions-subset2-rescaled.csv
 #ALL += $(WORKING)/python-dependencies.makefile
@@ -140,9 +140,25 @@ chart-02-ransac-2008-act-ct-median-median.makefile: \
 #  chart-02-theilsen-median-of-root-median-squared-errors.py 
 #	python chart-02-theilsen-median-of-root-median-squared-errors.py makefile
 
-#chart-04.makefile: \
-#	chart-04.py
-#	python chart-04.py makefile
+# chart 04
+
+# the target is an example
+# running the recipe creates multiple targets
+cvcell = $(CVCELL)/lassocv-logprice-ct-2003on-30.cvcell
+units = natural
+example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
+$(info cvcell  $(cvcell))
+$(info units   $(units))
+$(info example $(example))
+$(example): chart-04.py $(cvcell)
+	python chart-04.py --in $(cvcell) --cache --units $(units)
+
+# recipe to delete the cache and chart files
+# TODO: delete all the chart-04 files, after replicated prior result
+.PHONY: clean04
+clean04:
+	rm $(WORKING)/chart-04.cache.pickle $(example)
+
 
 # GENERATED TEX FILES
 
