@@ -147,17 +147,17 @@ chart-02-ransac-2008-act-ct-median-median.makefile: \
 cvcell = $(CVCELL)/lassocv-logprice-ct-2003on-30.cvcell
 units = natural
 example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
-$(info cvcell  $(cvcell))
-$(info units   $(units))
-$(info example $(example))
+#$(info cvcell  $(cvcell))
+#$(info units   $(units))
+#$(info example $(example))
 $(example): chart-04.py $(cvcell)
 	python chart-04.py --in $(cvcell) --cache --units $(units)
 
 # recipe to delete the cache and chart files
 # TODO: delete all the chart-04 files, after replicated prior result
-.PHONY: clean04
-clean04:
-	rm $(WORKING)/chart-04.cache.pickle $(example)
+.PHONY: clean-04
+clean-04:
+	rm $(WORKING)/chart-04.*
 
 
 # GENERATED TEX FILES
