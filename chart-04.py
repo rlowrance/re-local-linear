@@ -22,6 +22,7 @@ import sys
 from Bunch import Bunch
 from directory import directory
 from Logger import Logger
+import parse_command_line
 
 
 # prevent warning from pyflakes by using pdb
@@ -38,21 +39,6 @@ def print_help():
     print '     the cache contains a reduction of the input'
 
 
-def get_arg(argv, tag):
-    # return value past the tag or None
-    for i in xrange(len(argv)):
-        if argv[i] == tag:
-            return argv[i + 1]
-    return None
-
-
-def has_arg(argv, tag):
-    for i in xrange(len(argv)):
-        if argv[i] == tag:
-            return True
-    return False
-
-
 def make_control(argv):
     # return a Bunch
 
@@ -60,9 +46,9 @@ def make_control(argv):
     b = Bunch(debugging=False,
               base_name=argv[0].split('.')[0],
               me=argv[0],
-              arg_cache=has_arg(argv, '--cache'),
-              arg_in=get_arg(argv, '--in'),
-              arg_units=get_arg(argv, '--units'),
+              arg_cache=parse_command_line.has_arg(argv, '--cache'),
+              arg_in=parse_command_line.get_arg(argv, '--in'),
+              arg_units=parse_command_line.get_arg(argv, '--units'),
               now=datetime.datetime.now(),
               testing=False)
 
