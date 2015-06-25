@@ -39,7 +39,6 @@ import parse_command_line
 
 
 def default(argv, tag, default_value):
-    pdb.set_trace()
     actual = parse_command_line.get_arg(argv, tag)
     return default_value if actual is None else actual
 
