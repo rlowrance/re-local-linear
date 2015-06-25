@@ -41,6 +41,7 @@ ALL += $(WORKING)/transactions-subset2.csv
 ALL += $(WORKING)/transactions-subset2.pickle
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
+ALL += $(WORKING)/transactions-subset2-rescaled.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-wi10.txt
@@ -52,10 +53,9 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
-#ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
+ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
-#ALL += $(WORKING)/transactions-subset2-rescaled.csv
 #ALL += $(WORKING)/python-dependencies.makefile
 
 all: $(ALL)
@@ -66,11 +66,11 @@ all: $(ALL)
 #		< $(WORKING)/transactions-subset2.pickle \
 #		> $(WORKING)/transactions-subset2.csv
 
-$(WORKING)/transactions-subset2-rescaled.csv: \
-	rescale.py $(WORKING)/transactions-subset2.csv
+$(WORKING)/transactions-subset2-rescaled.pickle: \
+	rescale.py $(WORKING)/transactions-subset2.pickle
 	python rescale.py \
-		< $(WORKING)/transactions-subset2.csv \
-		> $(WORKING)/transactions-subset2-rescaled.csv
+		--in  $(WORKING)/transactions-subset2.pickle \
+		--out $(WORKING)/transactions-subset2-rescaled.pickle
 	
 # dependencies found in python source files
 include $(WORKING)/python-dependencies.makefile
@@ -162,10 +162,10 @@ c4cvcellrescaled = $(CVCELLRESCALED)/$(c4cellspec).cvcell
 c4unitsrescaled = rescaled
 c4examplerescaled = $(WORKING)/chart-04.$(c4unitsrescaled).nz-count-all-periods.txt
 transactionsrescaled = $(WORKING)/transactions-subset2-rescaled.pickle
-$(info c4cvcellrescaled       $(c4cvcellrescaled))
-$(info c4unitsrescaled        $(c4unitsrescaled))
-$(info c4examplerescaled      $(c4example))
-$(info c4transactionsrescaled $(c4transactionsrescaled))
+#$(info c4cvcellrescaled       $(c4cvcellrescaled))
+#$(info c4unitsrescaled        $(c4unitsrescaled))
+#$(info c4examplerescaled      $(c4example))
+#$(info c4transactionsrescaled $(c4transactionsrescaled))
 
 $(c4cvcellrescaled): $(transactionsrescaled)
 	python cv-cell.py $(cellspec) --in $(transactionsrescaled) --out $(cvcellrescaled)
