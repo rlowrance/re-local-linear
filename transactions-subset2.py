@@ -1,6 +1,9 @@
 # create files
 # WORKING/transactions-subset2.pickle
 # WORKING/transactions-subset2-counts.csv
+#
+# read file
+# WORKING/transactions.csv
 
 # import built-ins and libraries
 import numpy as np
@@ -273,6 +276,7 @@ def main():
         pdb.set_trace()  # investigate column sale.datetime
         print 'investigate sale.datetime'
 
+    # log the control variables
     # log the control variables
     for k, v in control.__dict__.iteritems():
         print 'control', k, v

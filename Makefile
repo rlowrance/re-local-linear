@@ -1,3 +1,4 @@
+# --debug=basic
 # disable built-in rules
 .SUFFIXES:
 
@@ -51,19 +52,19 @@ ALL += $(WORKING)/chart-02-ols-2008-act-ct-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
-ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
-ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
+#ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
+#ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/transactions-subset2-rescaled.csv
 #ALL += $(WORKING)/python-dependencies.makefile
 
 all: $(ALL)
 
-$(WORKING)/transactions-subset2.csv: \
-	unpickle-transactions-subset2.py $(WORKING)/transactions-subset2.pickle
-	python unpickle-transactions-subset2.py \
-		< $(WORKING)/transactions-subset2.pickle \
-		> $(WORKING)/transactions-subset2.csv
+#$(WORKING)/transactions-subset2.csv: \
+#	unpickle-transactions-subset2.py $(WORKING)/transactions-subset2.pickle
+#	python unpickle-transactions-subset2.py \
+#		< $(WORKING)/transactions-subset2.pickle \
+#		> $(WORKING)/transactions-subset2.csv
 
 $(WORKING)/transactions-subset2-rescaled.csv: \
 	rescale.py $(WORKING)/transactions-subset2.csv
@@ -93,9 +94,6 @@ include chart-02-ols-2008-act-ct-mean-mean.makefile
 include chart-02-ols-2008-act-ct-median-median.makefile
 include chart-02-ransac-2008-act-ct-median-median.makefile
 include chart-03.makefile
-#include chart-04.makefile
-#include chart-04.makefile
-#include chart-05.makefile
 
 # rules for other *.makefile files
 chart-02-ols-2003on-ct-t-mean-mean.makefile: \
@@ -144,25 +142,36 @@ chart-02-ransac-2008-act-ct-median-median.makefile: \
 
 # chart 04
 
-# the target is an example
-# running the recipe creates multiple targets
-cvcell = $(CVCELL)/lassocv-logprice-ct-2003on-30.cvcell
-units = natural
-example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
+c4cellspec = lassocv-logprice-ct-2003on-30
+c4cvcellnatural = $(CVCELL)/$(c4cellspec).cvcell
+c4unitsnatural = natural
+c4examplenatural = $(WORKING)/chart-04.$(c4unitsnatural).nz-count-all-periods.txt
+
+# create cell in natural units
+$(c4cvcellnatural): $(transactionsnatural)
+	python cv-cell.py $(c4cellspec) --in $(transactionsnatural) --out $(c4cvcellnatural)
 #$(info cvcell  $(cvcell))
 #$(info units   $(units))
 #$(info example $(example))
-$(example): chart-04.py $(cvcell)
-	python chart-04.py --in $(cvcell) --cache --units $(units)
+# the target is an example
+# running the recipe creates multiple targets
+$(c4examplenatural): chart-04.py $(c4cvcellnatural)
+	python chart-04.py --in $(c4cvcellnatural) --cache --units $(c4unitsnatural)
 
-cvcellrescaled = $(CVCELLRESCALED)/lassocv-logprice-ct-2003on-30.cvcell
-units = rescaled
-example = $(WORKING)/chart-04.$(units).nz-count-all-periods.txt
-$(info cvcellrescaled  $(cvcell))
-$(info units           $(units))
-$(info example         $(example))
-$(example): chart-04.py $(cvcellrescaled)
-	python chart-04.py --in $(cvcellrescaled) --cache --units $(units)
+c4cvcellrescaled = $(CVCELLRESCALED)/$(c4cellspec).cvcell
+c4unitsrescaled = rescaled
+c4examplerescaled = $(WORKING)/chart-04.$(c4unitsrescaled).nz-count-all-periods.txt
+transactionsrescaled = $(WORKING)/transactions-subset2-rescaled.pickle
+$(info c4cvcellrescaled       $(c4cvcellrescaled))
+$(info c4unitsrescaled        $(c4unitsrescaled))
+$(info c4examplerescaled      $(c4example))
+$(info c4transactionsrescaled $(c4transactionsrescaled))
+
+$(c4cvcellrescaled): $(transactionsrescaled)
+	python cv-cell.py $(cellspec) --in $(transactionsrescaled) --out $(cvcellrescaled)
+
+$(c4examplerescaled): chart-04.py $(c4cvcellrescaled)
+	python chart-04.py --in $(c4cvcellrescaled) --cache --units $(c4unitsrescaled)
 
 
 
@@ -213,14 +222,48 @@ $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
 	transactions.R
 	Rscript transactions.R
 
-$(WORKING)/transactions-subset2.pickle \
-: $(WORKING)/transactions.csv transactions-subset2.py
-	$(PYTHON) transactions-subset2.py
+# transactions subsets
+# in both natural and rescaled units
 
-$(WORKING)/transactions-subset2-test%pickle \
-$(WORKING)/transactions-subset2-train%pickle \
-: $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
-	$(PYTHON) transactions-subset2-test.py
+# natural units were created first
+
+naturalsubsetprefix = $(WORKING)/transactions-subset2
+nsp = $(naturalsubsetprefix)
+$(info nsp $(nsp))
+
+$(nsp)%pickle $(nsp)-counts%csv: 
+	$(WORKING)/transactions.csv transactions-subset2.py
+	python transactions-subset2.py
+
+tsnaturalprefix  = $(WORKING)/transactions-subset2
+tsrescaledprefix = $(WORKING)/transactions-subset2-rescaled
+tsin       = $(WORKING)/transactions.csv
+tspgm      = transactions-subset2.py
+
+
+#$(tsrescaled).pickle: $(tspgm) $(tsin)
+#	python $(tspgm) --in $(tsin) --outprefix $(tsrescaled)
+
+# split subset2 files
+tsnaturalstest  = $(WORKING)/transactions-subset2-test.py
+tsnaturalstrain = $(WORKING)/transactions-subset2-train.py
+tsrescaledtest  = $(WORKING)/transactions-subset2-rescaled-test.py
+tsrescaledtrain = $(WORKING)/transactions-subset2-rescaled-train.py
+tsplit          = split.py  
+
+#$(tsnaturaltrain): $(tsplit) $(tsnatural)
+#	python $(tssplit) \
+#		--in $(tsnatural) --outtest $(tsnaturaltest) --outtrain $(tsnaturaltrain)
+#
+#$(tsrescaledtrain): $(tsplit) $(tsrescaled)
+#	python $(tssplit) \
+#		--in $(tsrescaled) --outtest $(tsrescaledtest) --outtrain $(tsrescaledtrain)
+#
+
+#$(WORKING)/transactions-subset2-test%pickle \
+#$(WORKING)/transactions-subset2-train%pickle \
+#: $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
+#	$(PYTHON) transactions-subset2-test.py
 
 
 # source file dependencies R language
