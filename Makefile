@@ -37,11 +37,13 @@ INPUT_CENSUS += $(INPUT)/neighborhood-data/census.csv
 #ALL += $(WORKING)/parcels-derived-features.RData
 #ALL += $(WORKING)/parcels-sfr.RData
 #ALL += $(WORKING)/transactions.RData
-ALL += $(WORKING)/transactions-subset2.csv
+#ALL += $(WORKING)/transactions-subset2.csv
 ALL += $(WORKING)/transactions-subset2.pickle
 ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
-ALL += $(WORKING)/transactions-subset2-rescaled.pickle
+#ALL += $(WORKING)/transactions-subset2-rescaled.pickle
+#ALL += $(WORKING)/transactions-subset2-rescaled-test.pickle
+#ALL += $(WORKING)/transactions-subset2-rescaled-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-wi10.txt
@@ -55,22 +57,24 @@ ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
-ALL += $(WORKING)/record-counts.tex
+#ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
 
 all: $(ALL)
 
-#$(WORKING)/transactions-subset2.csv: \
-#	unpickle-transactions-subset2.py $(WORKING)/transactions-subset2.pickle
-#	python unpickle-transactions-subset2.py \
-#		< $(WORKING)/transactions-subset2.pickle \
-#		> $(WORKING)/transactions-subset2.csv
+$(WORKING)/transactions-subset2.csv: \
+	unpickle-transactions-subset2.py $(WORKING)/transactions-subset2.pickle
+	python unpickle-transactions-subset2.py 
 
-$(WORKING)/transactions-subset2-rescaled.pickle: \
-	rescale.py $(WORKING)/transactions-subset2.pickle
-	python rescale.py \
-		--in  $(WORKING)/transactions-subset2.pickle \
-		--out $(WORKING)/transactions-subset2-rescaled.pickle
+ts2prefix = $(WORKING)/transactions-subset2
+$(ts2prefix)-rescaled.pickle: rescale.py $(ts2prefix).pickle
+	python rescale.py --in $(ts2prefix).pickle --out $(ts2prefix)-rescaled.pickle
+
+#$(WORKING)/transactions-subset2-rescaled.pickle: \
+#	rescale.py $(WORKING)/transactions-subset2.pickle
+#	python rescale.py \
+#		--in  $(WORKING)/transactions-subset2.pickle \
+#		--out $(WORKING)/transactions-subset2-rescaled.pickle
 	
 # dependencies found in python source files
 include $(WORKING)/python-dependencies.makefile
@@ -190,7 +194,7 @@ $(WORKING)/deeds-al-g-counts.csv \
 $(WORKING)/transactions-counts.csv \
 $(WORKING)/transactions-subset2-counts.csv \
 record-counts.py
-	$(PYTHON) record-counts.py
+	python record-counts.py
 
 
 # DATA
@@ -225,46 +229,50 @@ $(WORKING)/transactions%RData $(WORKING)/transactions%csv:\
 # transactions subsets
 # in both natural and rescaled units
 
-# natural units were created first
-
-naturalsubsetprefix = $(WORKING)/transactions-subset2
-nsp = $(naturalsubsetprefix)
-$(info nsp $(nsp))
-
-$(nsp)%pickle $(nsp)-counts%csv: 
+$(WORKING)/transactions-subset2.pickle $(WORKING)/transactions-subset2-counts.csv: \
 	$(WORKING)/transactions.csv transactions-subset2.py
 	python transactions-subset2.py
 
-tsnaturalprefix  = $(WORKING)/transactions-subset2
-tsrescaledprefix = $(WORKING)/transactions-subset2-rescaled
-tsin       = $(WORKING)/transactions.csv
-tspgm      = transactions-subset2.py
+$(WORKING)/transactions-subset2-test%pickle $(WORKING)/transactions-subset2-train%pickle:\
+	$(WORKING)/transactions-subset2.pickle split.py
+	python split.py \
+		--test     0.10 \
+		--in       $(WORKING)/transactions-subset2.pickle \
+		--outtest  $(WORKING)/transactions-subset2-test.pickle \
+		--outtrain $(WORKING)/transactions-subset2-train.pickle
 
 
-#$(tsrescaled).pickle: $(tspgm) $(tsin)
-#	python $(tspgm) --in $(tsin) --outprefix $(tsrescaled)
-
-# split subset2 files
-tsnaturalstest  = $(WORKING)/transactions-subset2-test.py
-tsnaturalstrain = $(WORKING)/transactions-subset2-train.py
-tsrescaledtest  = $(WORKING)/transactions-subset2-rescaled-test.py
-tsrescaledtrain = $(WORKING)/transactions-subset2-rescaled-train.py
-tsplit          = split.py  
-
-#$(tsnaturaltrain): $(tsplit) $(tsnatural)
-#	python $(tssplit) \
-#		--in $(tsnatural) --outtest $(tsnaturaltest) --outtrain $(tsnaturaltrain)
 #
-#$(tsrescaledtrain): $(tsplit) $(tsrescaled)
-#	python $(tssplit) \
-#		--in $(tsrescaled) --outtest $(tsrescaledtest) --outtrain $(tsrescaledtrain)
+#tsnaturalprefix  = $(WORKING)/transactions-subset2
+#tsrescaledprefix = $(WORKING)/transactions-subset2-rescaled
+#tsin       = $(WORKING)/transactions.csv
+#tspgm      = transactions-subset2.py
 #
-
-#$(WORKING)/transactions-subset2-test%pickle \
-#$(WORKING)/transactions-subset2-train%pickle \
-#: $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
-#	$(PYTHON) transactions-subset2-test.py
-
+#
+##$(tsrescaled).pickle: $(tspgm) $(tsin)
+##	python $(tspgm) --in $(tsin) --outprefix $(tsrescaled)
+#
+## split subset2 files
+#tsnaturalstest  = $(WORKING)/transactions-subset2-test.py
+#tsnaturalstrain = $(WORKING)/transactions-subset2-train.py
+#tsrescaledtest  = $(WORKING)/transactions-subset2-rescaled-test.py
+#tsrescaledtrain = $(WORKING)/transactions-subset2-rescaled-train.py
+#tsplit          = split.py  
+#
+##$(tsnaturaltrain): $(tsplit) $(tsnatural)
+##	python $(tssplit) \
+##		--in $(tsnatural) --outtest $(tsnaturaltest) --outtrain $(tsnaturaltrain)
+##
+##$(tsrescaledtrain): $(tsplit) $(tsrescaled)
+##	python $(tssplit) \
+##		--in $(tsrescaled) --outtest $(tsrescaledtest) --outtrain $(tsrescaledtrain)
+##
+#
+##$(WORKING)/transactions-subset2-test%pickle \
+##$(WORKING)/transactions-subset2-train%pickle \
+##: $(WORKING)/transactions-subset2.pickle transactions-subset2-test.py
+##	$(PYTHON) transactions-subset2-test.py
+#
 
 # source file dependencies R language
 census.R: \
