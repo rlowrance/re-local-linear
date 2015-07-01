@@ -14,3 +14,8 @@ def has_arg(argv, tag):
         if argv[i] == tag:
             return True
     return False
+
+
+def default(argv, tag, default_value):
+    actual = get_arg(argv, tag)
+    return default_value if actual is None else actual
