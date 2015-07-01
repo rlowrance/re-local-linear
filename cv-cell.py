@@ -38,11 +38,6 @@ from FoldResult import FoldResult
 import parse_command_line
 
 
-def default(argv, tag, default_value):
-    actual = parse_command_line.get_arg(argv, tag)
-    return default_value if actual is None else actual
-
-
 def make_control(argv):
     # return a Bunch
 
@@ -59,63 +54,14 @@ def make_control(argv):
               now=datetime.datetime.now(),
               base_name=script_name.split('.')[0],
               me=script_name,
-              arg_in=default(argv, '--in', default_in),
-              arg_out=default(argv, '--out', default_out),
+              arg_in=parse_command_line.default(argv, '--in', default_in),
+              arg_out=parse_command_line.default(argv, '--out', default_out),
               arg_model=model,
               arg_response=response,
               arg_predictors=predictors,
               arg_years=years,
               arg_days=days)
     return b
-#
-#        Record.__init__(self, 'control')
-#
-#        me = 'cv-cell'
-#
-#        working = directory('working')
-#        log = directory('log')
-#        cvcell = working + 'cv-cell/'
-#
-#        # confirm that exactly one argument
-#        if len(arguments) != 2:
-#            print_calling_sequence()
-#            raise RuntimeError('need exactly one positional argument')
-#
-#        # parse the positional argument
-#        arg1 = arguments[1]
-#        splits = arg1.split('-')
-#        if len(splits) != 5:
-#            print_calling_sequence()
-#            raise RuntimeError('bad invocation argument: ' + arg1)
-#        self.model = splits[0]
-#        self.response = splits[1]
-#        self.predictors = splits[2]
-#        self.test_years = splits[3]
-#        self.training_days = splits[4]
-#
-#        # make sure that PREDICTORS is known
-#        try:
-#            features(self.predictors)
-#        except RuntimeError:
-#            print_calling_sequence()
-#            raise RuntimeError('unknown predictors:' + self.predictors)
-#
-#        self.path_out = cvcell + arg1 + '.cvcell'
-#        self.path_out_log = log + me + '-' + arg1 + '.log'
-#        self.path_in_train = working + 'transactions-subset2-train.pickle'
-#
-#        self.command_line = arg1
-#        self.n_folds = 10
-#
-#        # make random numbers reproducable
-#        self._random_seed = 123  # don't use this, define just for documentation
-#        # create np.random.RandomState instance
-#        self.random_state = sklearn.utils.check_random_state(self._random_seed)
-#
-#        self.testing = False
-#        self.debugging = False
-#        # eliminate null is input column sale.python_date
-#        self.debugging_sale_python_date = False
 
 
 def relevant_test(df, test_years):
