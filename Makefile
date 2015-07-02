@@ -134,18 +134,26 @@ chart-02-ransac-2008-act-ct-median-median.makefile: \
 c4cellspec = lassocv-logprice-ct-2003on-30
 c4cvcellnatural = $(CVCELL)/$(c4cellspec).cvcell
 c4unitsnatural = natural
-c4examplenatural = $(WORKING)/chart-04.$(c4unitsnatural).nz-count-all-periods.txt
+c4examplenatural = $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 
-# create cell in natural units
+# create cell in natural units 
+# NOTE: don't depend on cv-cell.py, as it changes all the time
+# and cell creation take a long time
 $(c4cvcellnatural): $(transactionsnatural)
-	python cv-cell.py $(c4cellspec) --in $(transactionsnatural) --out $(c4cvcellnatural)
+	python cv-cell.py\
+		$(c4cellspec) \
+		--in $(transactionsnatural) \
+		--out $(c4cvcellnatural)
 #$(info cvcell  $(cvcell))
 #$(info units   $(units))
 #$(info example $(example))
 # the target is an example
 # running the recipe creates multiple targets
 $(c4examplenatural): chart-04.py $(c4cvcellnatural)
-	python chart-04.py --in $(c4cvcellnatural) --cache --units $(c4unitsnatural)
+	python chart-04.py \
+		--in $(c4cvcellnatural) \
+		--cache \
+		--units natural
 
 c4cvcellrescaled = $(CVCELLRESCALED)/$(c4cellspec).cvcell
 c4unitsrescaled = rescaled
@@ -238,7 +246,7 @@ $(ts2prefix)-rescaled.pickle: rescale.py $(ts2prefix).pickle
 		--out $(ts2prefix)-rescaled.pickle
 
 ts2rescaledprefix = $(WORKING)/transactions-subset2-rescaled
-#$(info ts2rescaledprefix $(ts2rescaledprefix))
+#$info ts2rescaledprefix $(ts2rescaledprefix))
 $(ts2rescaledprefix)-test%pickle $(ts2rescaledprefix)-train%pickle: \
 	rescale.py $(ts2rescaledprefix).pickle
 	python split.py \
