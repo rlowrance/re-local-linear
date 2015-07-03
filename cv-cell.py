@@ -1,5 +1,6 @@
 # create a cross validation cell, a file *.cvcell containing cv results
 # invocation: MODEL-RESPONSE-PREDICTORS-YEARS-DAYS --in PATHIN --out PATHOUT
+# --age YESNO
 # where
 # MODEL specifies the model, one of {ols, lassocv, ...}
 # RESPONSE specifies the response feature, one of {price, logprice}
@@ -10,6 +11,8 @@
 #        default=WORKING/transactions-subset2.pickle
 # OUTPUT is the path to the output cross validations file
 #        defaul=WORKING/cvcell/MODEL-RESPONSE-PREDICTORS-YEARS-DAYS.cvcell
+# YESNO whether to synthesize the age feature, default is no
+#
 
 # NOTE: The default paths are provided to maintain backwards compatibility
 # with existing Makefiles.
@@ -41,7 +44,6 @@ import parse_command_line
 def make_control(argv):
     # return a Bunch
 
-    pdb.set_trace()
     script_name = argv[0]
     cell_specifier = argv[1]
 
@@ -49,18 +51,23 @@ def make_control(argv):
     default_out = directory('cv-cell') + argv[1] + '.cvcell'
     model, response, predictors, years, days = cell_specifier.split('-')
 
+    random_seed = 123  # random_state is an np.random.RandomState instance
+
     b = Bunch(debugging=False,
               testing=False,
               now=datetime.datetime.now(),
               base_name=script_name.split('.')[0],
               me=script_name,
+              n_folds=10,
+              random_state=sklearn.utils.check_random_state(random_seed),
+              arg_age=parse_command_line.default(argv, '--age', 'yes'),
               arg_in=parse_command_line.default(argv, '--in', default_in),
               arg_out=parse_command_line.default(argv, '--out', default_out),
-              arg_model=model,
-              arg_response=response,
-              arg_predictors=predictors,
-              arg_years=years,
-              arg_days=days)
+              model=model,
+              response=response,
+              predictors=predictors,
+              test_years=years,
+              training_days=days)
     return b
 
 
@@ -196,17 +203,19 @@ def transform_to_log(df_list, transformation):
 
 def make_xy(test_date, test, train, control):
     '''Return test_x, train_x, train_y.'''
+    pdb.set_trace()
     transformation = features(control.predictors)
     predictor_names = transformation.keys()
 
     # possibly mutate predictor_names by
     #  dropping year features
     #  adding age and age^2 features
-    maybe_add_age([test, train],
-                  [['YEAR.BUILT', 'age'],
-                   ['EFFECTIVE.YEAR.BUILT', 'effective.age']],
-                  predictor_names,
-                  test_date)
+    if control.arg_age == 'yes':
+        maybe_add_age([test, train],
+                      [['YEAR.BUILT', 'age'],
+                       ['EFFECTIVE.YEAR.BUILT', 'effective.age']],
+                      predictor_names,
+                      test_date)
     if control.predictors[-3:] == 'log':
         # NOTE: don't introduce new predictor names
         transform_to_log([test, train], transformation)
@@ -435,6 +444,7 @@ def get_actuals(df, control):
 def make_fold_result_for_sale_date(sale_date, test, train, control):
     '''Return actuals, estimates for all test transactions on sale date.
     '''
+    pdb.set_trace()
     test_relevant, train_relevant = make_relevant(sale_date,
                                                   test,
                                                   train,
@@ -539,6 +549,7 @@ def make_cv_result(df, control):
                                 random_state=control.random_state)
 
     # for each fold
+    pdb.set_trace()
     cvresult = CvResult()
     fold_number = 0
     for train_indices, test_indices in kf:
@@ -559,7 +570,6 @@ def make_cv_result(df, control):
 
 def main():
 
-    pdb.set_trace()
     warnings.filterwarnings('error')
     control = make_control(sys.argv)
     path = \
@@ -569,21 +579,24 @@ def main():
     print control
 
     # read training data
-    f = open(control.path_in_train, 'rb')
+    print "reading training data"
+    f = open(control.arg_in, 'rb')
     df = pickle.load(f)
     f.close()
 
     # check that no sale.python_date value is not null
-    if control.debugging_sale_python_date:
+    if False and control.debugging_sale_python_date:
         dates = df['sale.python_date']
         if dates.isnull().any():
             print dates
             raise ValueError('a sale.python_date is null')
 
+    print "making the cross validation result"
+    pdb.set_trace()
     cv_result = make_cv_result(df=df, control=control)
 
     # write cross validation result
-    f = open(control.path_out, 'wb')
+    f = open(control.arg_out, 'wb')
     pickle.dump(cv_result, f)
     f.close()
 

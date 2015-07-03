@@ -432,6 +432,55 @@ def create_charts(control, data):
             overall_rank += 1
         report.write(txt_path('ranking-by-month'))
 
+    def mean_coefficients_all_periods(num_tests, test_coef):
+        # equally weight the days, so don't use num_tests
+        # ARGS
+        #  num_tests[(fold_number, sale_date)] -> count
+        #  test_coef[(fold_number, sale_date, predictor_name)] -> coefficient
+        pdb.set_trace()
+
+        # sum coefficients and their abs values by predictor
+        sum_absolute_coefficient = collections.defaultdict(int)
+        sum_coefficient = collections.defaultdict(int)
+        for k, coefficient in test_coef.iteritems():
+            fold_number, sale_date, predictor_name = k
+            sum_absolute_coefficient[predictor_name] += abs(coefficient)
+            sum_coefficient[predictor_name] += coefficient
+
+        # sort the predictor names
+        print sum_absolute_coefficient
+        print sum_coefficient
+        pdb.set_trace()
+        predictors = sorted(sum_absolute_coefficient.items(),
+                            key=operator.itemgetter(1),  # sort by value
+                            reverse=True)                # sort high first
+
+        # print the report
+        # coef | mean abs value | mean value
+        pdb.set_trace()
+        report = Report()
+        report.append('Mean Values of Coefficient from the Lasso Regressions')
+        report.append('For All Periods')
+        report.append('Using Normalized Features')
+
+        format_header = '%25s %11s %11s'
+        format_data = '%25s %+11.6f %+11.6f'
+
+        report.append(format_header % (' ', 'mean', ' '))
+        report.append(format_header % (' ', 'absolute', 'mean'))
+        report.append(format_header %
+                      ('predictor', 'coefficient', 'coefficient'))
+
+        num_models = 1.0 * len(test_coef)  # num items
+        pdb.set_trace()
+        for predictor_pair in predictors:
+            predictor = predictor_pair[0]
+            report.append(format_data %
+                          (predictor,
+                           sum_absolute_coefficient[predictor] / num_models,
+                           sum_coefficient[predictor] / num_models))
+        report.write(txt_path('mean-coefficients-all-periods'))
+
     # parse the reduced data
     num_tests = data['num_tests']
     test_coef = data['test_coef']
@@ -440,6 +489,7 @@ def create_charts(control, data):
     num_fitted_models, predictors_ordered, counts = \
         make_counts(num_tests, test_coef)
 
+    mean_coefficients_all_periods(num_tests, test_coef)
     title = 'Percent of All Models with Non-Zero Coefficients'
     nz_count_all_periods(title, num_fitted_models, predictors_ordered, counts)
     nz_count_by_year(title, num_fitted_models, predictors_ordered, counts)

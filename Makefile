@@ -43,7 +43,7 @@ ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled-test.pickle
-ALL += $(WORKING)/transactions-subset2-rescaled-train.pickle
+#ALL += $(WORKING)/transactions-subset2-rescaled-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-wi10.txt
@@ -144,9 +144,7 @@ $(c4cvcellnatural): $(transactionsnatural)
 		$(c4cellspec) \
 		--in $(transactionsnatural) \
 		--out $(c4cvcellnatural)
-#$(info cvcell  $(cvcell))
-#$(info units   $(units))
-#$(info example $(example))
+
 # the target is an example
 # running the recipe creates multiple targets
 $(c4examplenatural): chart-04.py $(c4cvcellnatural)
@@ -165,10 +163,17 @@ transactionsrescaled = $(WORKING)/transactions-subset2-rescaled.pickle
 #$(info c4transactionsrescaled $(c4transactionsrescaled))
 
 $(c4cvcellrescaled): $(transactionsrescaled)
-	python cv-cell.py $(cellspec) --in $(transactionsrescaled) --out $(cvcellrescaled)
+	python cv-cell.py \
+		$(c4cellspec) \
+		--in $(transactionsrescaled) \
+		--out $(c4cvcellrescaled) \
+		--age no
 
 $(c4examplerescaled): chart-04.py $(c4cvcellrescaled)
-	python chart-04.py --in $(c4cvcellrescaled) --cache --units $(c4unitsrescaled)
+	python chart-04.py \
+		--in $(c4cvcellrescaled) \
+		--cache \
+		--units $(c4unitsrescaled)
 
 
 
