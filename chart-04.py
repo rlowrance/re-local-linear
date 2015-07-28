@@ -513,7 +513,6 @@ def create_charts(control, data):
                        sum_intercept / num_models))
 
         # report errors
-        pdb.set_trace()
         sum_actual_prices = 0.0
         sum_errors = 0.0
         sum_abs_errors = 0.0
@@ -530,7 +529,6 @@ def create_charts(control, data):
         mean_abs_error = sum_abs_errors / count_estimates
         mean_actual_price = sum_actual_prices / count_estimates
 
-        pdb.set_trace()
         report.append(' ')
         report.append('PRICES AND ERRORS')
         format_data_prices = '%25s %11.0f'
@@ -542,11 +540,6 @@ def create_charts(control, data):
                       ('mean abs error', mean_abs_error))
         report.append(format_data_prices %
                       ('mean error (actual - est)', mean_error))
-
-
-
-
-
 
         report.write(txt_path('mean-coefficients-all-periods'))
 
