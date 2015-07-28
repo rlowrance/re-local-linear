@@ -66,11 +66,15 @@ def cache_path(control):
 def create_reduction(control):
     '''return reduction of the data in path control.arg_in
 
-    The reduced data is a dict
-    key = ERROR (from command line) (one of mrmse mae)
-    value = a dicionary with the estimated generalization error
-     key =(response, predictor, training_days)
-     value = scalar value from each fold
+    The reduced data is a dict containing
+    - for each fold and sale date:
+        - number of tests
+        - linear regression intercept
+        - actuals, estimates for each test transaction in the fold
+    - for each fold, sale date, and predictor:
+        - linear regression coefficient
+
+    Note: there is one model for each sale date and fold
     '''
 
     def get_cv_result(file_path):
@@ -93,12 +97,16 @@ def create_reduction(control):
             raise RuntimeError('unknown metric: ' + control.specs.metric)
         return maybe_value.value if maybe_value.has_value else None
 
-    # key = (fold_number, sale_date) value = num test transactions
+    # key1 = (fold_number, sale_date) value = num test transactions
     num_tests = collections.defaultdict(int)
-    # key = (fold_number, sale_date, predictor_name) value = coefficient
+    test_intercept = {}
+    actuals = {}
+    estimates = {}
+    # key2 = (fold_number, sale_date, predictor_name) value = coefficient
     test_coef = {}
 
     path = control.arg_in
+    print 'reading cv result'
     cv_result = get_cv_result(path)  # a CvResult instance
     num_folds = len(cv_result.fold_results)
     for fold_number in xrange(num_folds):
@@ -107,25 +115,30 @@ def create_reduction(control):
         # fold_estimates = fold_result.estimates
         fold_raw = fold_result.raw_fold_result
         for sale_date, fitted_model in fold_raw.iteritems():
-            # sale_date_num_train = fitted_model['num_train']
-            # sale_date_estimates = fitted_model['estimates']
-            # sale_date_actuals = fitted_model['estimates']
             sale_date_predictor_names = fitted_model['predictor_names']
             sale_date_num_test = fitted_model['num_test']
-            # sale_date_model = fitted_model['model']
             sale_date_fitted = fitted_model['fitted']
 
             # extract info from the fitted_model
+            key1 = (fold_number, sale_date)
             num_tests[(fold_number, sale_date)] += sale_date_num_test
+            test_intercept[key1] = sale_date_fitted.intercept_
+            actuals[key1] = fitted_model['actuals'].values  # drop indices
+            estimates[key1] = fitted_model['estimates']
 
             # save each coefficient
             sale_date_coef = sale_date_fitted.coef_
             assert(len(sale_date_coef) == len(sale_date_predictor_names))
             for i in xrange(len(sale_date_coef)):
-                key = (fold_number, sale_date, sale_date_predictor_names[i])
-                test_coef[key] = sale_date_coef[i]
+                key2 = (fold_number, sale_date, sale_date_predictor_names[i])
+                test_coef[key2] = sale_date_coef[i]
 
-    reduced_data = {'num_tests': num_tests, 'test_coef': test_coef}
+    reduced_data = {'num_tests': num_tests,
+                    'test_coef': test_coef,
+                    'test_intercept': test_intercept,
+                    'actuals': actuals,
+                    'estimates': estimates}
+
     return reduced_data
 
 
@@ -432,35 +445,50 @@ def create_charts(control, data):
             overall_rank += 1
         report.write(txt_path('ranking-by-month'))
 
-    def mean_coefficients_all_periods(num_tests, test_coef):
+    def mean_coefficients_all_periods(num_tests,
+                                      test_coef,
+                                      test_intercept,
+                                      actuals,
+                                      estimates):
         # equally weight the days, so don't use num_tests
         # ARGS
         #  num_tests[(fold_number, sale_date)] -> count
+        #  test_intercept[(fold_number, sale_date]) -> intercept
         #  test_coef[(fold_number, sale_date, predictor_name)] -> coefficient
-        pdb.set_trace()
 
         # sum coefficients and their abs values by predictor
-        sum_absolute_coefficient = collections.defaultdict(int)
-        sum_coefficient = collections.defaultdict(int)
+        sum_absolute_coefficient = collections.defaultdict(float)
+        sum_coefficient = collections.defaultdict(float)
         for k, coefficient in test_coef.iteritems():
             fold_number, sale_date, predictor_name = k
             sum_absolute_coefficient[predictor_name] += abs(coefficient)
             sum_coefficient[predictor_name] += coefficient
 
+        sum_absolute_intercept = 0.0
+        sum_intercept = 0.0
+        for k, intercept in test_intercept.iteritems():
+            sum_absolute_intercept += abs(intercept)
+            sum_intercept += intercept
+
         # sort the predictor names
         print sum_absolute_coefficient
         print sum_coefficient
-        pdb.set_trace()
         predictors = sorted(sum_absolute_coefficient.items(),
                             key=operator.itemgetter(1),  # sort by value
                             reverse=True)                # sort high first
+        print 'predictors'
+        print predictors
+
+        # determine number of models over which averaged coefficients are
+        # determined
+        num_models = len(num_tests)  # NOT the number of tests
 
         # print the report
         # coef | mean abs value | mean value
-        pdb.set_trace()
         report = Report()
         report.append('Mean Values of Coefficient from the Lasso Regressions')
         report.append('For All Periods')
+        report.append('Summarizing %d Models' % num_models)
         report.append('Using Normalized Features')
 
         format_header = '%25s %11s %11s'
@@ -471,34 +499,91 @@ def create_charts(control, data):
         report.append(format_header %
                       ('predictor', 'coefficient', 'coefficient'))
 
-        num_models = 1.0 * len(test_coef)  # num items
-        pdb.set_trace()
+        # write predictor coefficients
         for predictor_pair in predictors:
             predictor = predictor_pair[0]
             report.append(format_data %
                           (predictor,
                            sum_absolute_coefficient[predictor] / num_models,
                            sum_coefficient[predictor] / num_models))
+        # write intercept
+        report.append(format_data %
+                      ('**INTERCEPT**',
+                       sum_absolute_intercept / num_models,
+                       sum_intercept / num_models))
+
+        # report errors
+        pdb.set_trace()
+        sum_actual_prices = 0.0
+        sum_errors = 0.0
+        sum_abs_errors = 0.0
+        count_estimates = 0
+        for k, actual_prices in actuals.iteritems():
+            estimated_prices = estimates[k]
+            errors = actual_prices - estimated_prices
+            count_estimates += len(errors)
+            sum_actual_prices += sum(actual_prices)
+            sum_errors = sum(errors)
+            sum_abs_errors = sum(abs(errors))
+
+        mean_error = sum_errors / count_estimates
+        mean_abs_error = sum_abs_errors / count_estimates
+        mean_actual_price = sum_actual_prices / count_estimates
+
+        pdb.set_trace()
+        report.append(' ')
+        report.append('PRICES AND ERRORS')
+        format_data_prices = '%25s %11.0f'
+        report.append(format_data_prices %
+                      ('number of estimates', count_estimates))
+        report.append(format_data_prices %
+                      ('mean actual price', mean_actual_price))
+        report.append(format_data_prices %
+                      ('mean abs error', mean_abs_error))
+        report.append(format_data_prices %
+                      ('mean error (actual - est)', mean_error))
+
+
+
+
+
+
         report.write(txt_path('mean-coefficients-all-periods'))
 
-    # parse the reduced data
-    num_tests = data['num_tests']
-    test_coef = data['test_coef']
-    del data
 
     num_fitted_models, predictors_ordered, counts = \
-        make_counts(num_tests, test_coef)
+        make_counts(num_tests=data['num_tests'],
+                    test_coef=data['test_coef'])
 
-    mean_coefficients_all_periods(num_tests, test_coef)
+    mean_coefficients_all_periods(num_tests=data['num_tests'],
+                                  test_coef=data['test_coef'],
+                                  test_intercept=data['test_intercept'],
+                                  actuals=data['actuals'],
+                                  estimates=data['estimates'])
     title = 'Percent of All Models with Non-Zero Coefficients'
-    nz_count_all_periods(title, num_fitted_models, predictors_ordered, counts)
-    nz_count_by_year(title, num_fitted_models, predictors_ordered, counts)
+    nz_count_all_periods(title=title,
+                         num_fitted_models=num_fitted_models,
+                         predictors_ordered=predictors_ordered,
+                         counts=counts)
+    nz_count_by_year(title=title,
+                     num_fitted_models=num_fitted_models,
+                     predictors_ordered=predictors_ordered,
+                     counts=counts)
 
     titles = ('Ranking for Inclusion of Predictors In Models',
               'Ranking = 1: Most Frequently Included Predictor')
-    ranked_by_year(titles, num_fitted_models, predictors_ordered, counts)
-    ranked_by_quarter(titles, num_fitted_models, predictors_ordered, counts)
-    ranked_by_month(titles, num_fitted_models, predictors_ordered, counts)
+    ranked_by_year(titles=titles,
+                   num_fitted_models=num_fitted_models,
+                   predictors_ordered=predictors_ordered,
+                   counts=counts)
+    ranked_by_quarter(titles=titles,
+                      num_fitted_models=num_fitted_models,
+                      predictors_ordered=predictors_ordered,
+                      counts=counts)
+    ranked_by_month(titles=titles,
+                    num_fitted_models=num_fitted_models,
+                    predictors_ordered=predictors_ordered,
+                    counts=counts)
 
 
 def get_reduced_data(control):
