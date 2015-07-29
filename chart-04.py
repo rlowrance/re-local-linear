@@ -15,6 +15,7 @@ import collections
 import cPickle as pickle
 import datetime
 import operator
+import random
 import pdb
 import sys
 
@@ -41,6 +42,8 @@ def print_help():
 
 def make_control(argv):
     # return a Bunch
+
+    random.seed(123)
 
     # supply common conrol values
     b = Bunch(debugging=False,
@@ -445,6 +448,63 @@ def create_charts(control, data):
             overall_rank += 1
         report.write(txt_path('ranking-by-month'))
 
+    def random_fitted_models(num_tests, test_coef, test_intercept):
+
+        # determine predictor names
+        predictor_names = set()
+        for k, _ in test_coef.iteritems():
+            fold, sale_date, predictor_name = k
+            predictor_names.add(predictor_name)
+
+        # determine which models to sample
+        num_models = len(test_intercept)
+        num_to_print = 5
+        to_sample = random.sample(xrange(num_models), num_to_print)
+
+        # create dictionary with the report detail values
+        details = {}
+        counter = 0
+        for k, intercept in test_intercept.iteritems():
+            if counter in to_sample:
+                # create details for next column in the report
+                details[('**INTERCEPT**', counter)] = intercept
+                fold, sale_date = k
+                for predictor_name in predictor_names:
+                    key = (fold, sale_date, predictor_name)
+                    details[(predictor_name, counter)] = test_coef[key]
+            counter += 1
+
+        report = Report()
+        format_name = '%25s '
+        format_index = '%9d '
+        format_coefficient = '%9.6f '
+
+        report.append('Randomly-selected Fitted Lasso CV Models')
+        report.append(' ')
+
+        # print selected model indices
+        line = format_name % 'model index:'
+        for counter in to_sample:
+            line += format_index % counter
+        report.append(line)
+
+        # print coefficients of predictors
+        for predictor_name in predictor_names:
+            line = format_name % predictor_name
+            for counter in to_sample:
+                key = (predictor_name, counter)
+                line += format_coefficient % details[key]
+            report.append(line)
+
+        # print intercepts
+        line = format_name % '**INTERCEPT**'
+        for counter in to_sample:
+            key = ('**INTERCEPT**', counter)
+            line += format_coefficient % details[key]
+        report.append(line)
+
+        report.write(txt_path('randomly-selected-fitted-models'))
+
     def mean_coefficients_all_periods(num_tests,
                                       test_coef,
                                       test_intercept,
@@ -543,11 +603,13 @@ def create_charts(control, data):
 
         report.write(txt_path('mean-coefficients-all-periods'))
 
-
     num_fitted_models, predictors_ordered, counts = \
         make_counts(num_tests=data['num_tests'],
                     test_coef=data['test_coef'])
 
+    random_fitted_models(num_tests=data['num_tests'],
+                         test_coef=data['test_coef'],
+                         test_intercept=data['test_intercept'])
     mean_coefficients_all_periods(num_tests=data['num_tests'],
                                   test_coef=data['test_coef'],
                                   test_intercept=data['test_intercept'],
