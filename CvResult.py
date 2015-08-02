@@ -25,6 +25,9 @@ class CvResult(object):
         s = 'CvResult(%s folds)' % len(self.fold_results)
         return s
 
+    def __getitem__(self, key):
+        return self.fold_results[key]
+
     def _reduce_fold_errors(self,
                             summarize_fold_accuracy,
                             reduce_fold_summary_to_number):
