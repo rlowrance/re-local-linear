@@ -1,4 +1,8 @@
 import sys
+import pdb
+
+if False:
+    pdb.set_trace()  # avoid warning message from pyflakes
 
 
 class Logger(object):
@@ -6,10 +10,15 @@ class Logger(object):
 
     def __init__(self, logfile_path, logfile_mode='w'):
         self.terminal = sys.stdout
-        self.log = open(logfile_path, logfile_mode)
+        clean_path = logfile_path.replace(':', '-')
+        self.log = open(clean_path, logfile_mode)
+        pass
 
     def write(self, message):
         self.terminal.write(message)
         self.log.write(message)
 
-# sys.stdout = Logger()  # now the print statement echos to screen and log file
+if False:
+    # usage example
+    sys.stdout = Logger('path/to/log/file')
+    # now print statements write on both stdout and the log file
