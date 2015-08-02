@@ -14,7 +14,9 @@
 import collections
 import cPickle as pickle
 import datetime
+import numpy as np
 import operator
+from pprint import pprint  # for debugging
 import random
 import pdb
 import sys
@@ -29,6 +31,7 @@ import parse_command_line
 # prevent warning from pyflakes by using pdb
 if False:
     pdb.set_trace()
+    pprint()
 
 
 def print_help():
@@ -43,7 +46,7 @@ def print_help():
 def make_control(argv):
     # return a Bunch
 
-    random.seed(123)
+    random.seed(123456)
 
     # supply common conrol values
     b = Bunch(debugging=False,
@@ -71,11 +74,12 @@ def create_reduction(control):
 
     The reduced data is a dict containing
     - for each fold and sale date:
-        - number of tests
-        - linear regression intercept
-        - actuals, estimates for each test transaction in the fold
+        - 'num_tests': number of tests
+        - 'fitted_coef': linear regression intercept
+        - 'actuals': actuals, estimates for each test transaction in the fold
+        - 'fitted_models_subset': a subset of the the fitted model
     - for each fold, sale date, and predictor:
-        - linear regression coefficient
+        - 'fitted_coef': linear regression coefficient
 
     Note: there is one model for each sale date and fold
     '''
@@ -100,34 +104,48 @@ def create_reduction(control):
             raise RuntimeError('unknown metric: ' + control.specs.metric)
         return maybe_value.value if maybe_value.has_value else None
 
+    path = control.arg_in
+    cv_result = get_cv_result(path)  # a CvResult instance
+
     # key1 = (fold_number, sale_date) value = num test transactions
     num_tests = collections.defaultdict(int)
     test_intercept = {}
     actuals = {}
     estimates = {}
-    # key2 = (fold_number, sale_date, predictor_name) value = coefficient
     test_coef = {}
+    by_year = {}
 
-    path = control.arg_in
-    print 'reading cv result'
-    cv_result = get_cv_result(path)  # a CvResult instance
-    num_folds = len(cv_result.fold_results)
-    for fold_number in xrange(num_folds):
-        fold_result = cv_result.fold_results[fold_number]
-        # fold_actuals = fold_result.actuals
-        # fold_estimates = fold_result.estimates
-        fold_raw = fold_result.raw_fold_result
-        for sale_date, fitted_model in fold_raw.iteritems():
-            sale_date_predictor_names = fitted_model['predictor_names']
-            sale_date_num_test = fitted_model['num_test']
-            sale_date_fitted = fitted_model['fitted']
+    print 'creating the reduction'
+    for fold_number, fold_result in cv_result.fold_results.iteritems():
+        # fold_result attributes:
+        #   actuals         : nparray 1D
+        #   estimates       : np array 1D
+        #   raw_fold_result : dict[sale_date] = fitted_model
+        raw_fold_result = fold_result.raw_fold_result
+        for sale_date, something in raw_fold_result.iteritems():
+            # something attributes for model == 'lassocv'
+            #  num_train
+            #  num_test
+            #  actuals
+            #  estimates
+            #  predictor_names
+            #  model : string (name of model; e.g., lassocv)
+            #  fitted: attributes of fitted model: coef_, alpha_, ...
+            sale_year = sale_date.year
+            if sale_year not in by_year:
+                by_year[sale_year] = set()
+            by_year[sale_year].add((fold_number, sale_date))
 
-            # extract info from the fitted_model
+            sale_date_predictor_names = something['predictor_names']
+            sale_date_num_test = something['num_test']
+            sale_date_fitted = something['fitted']
+
+            # extract info from the something
             key1 = (fold_number, sale_date)
             num_tests[(fold_number, sale_date)] += sale_date_num_test
             test_intercept[key1] = sale_date_fitted.intercept_
-            actuals[key1] = fitted_model['actuals'].values  # drop indices
-            estimates[key1] = fitted_model['estimates']
+            actuals[key1] = something['actuals'].values  # drop indices
+            estimates[key1] = something['estimates']
 
             # save each coefficient
             sale_date_coef = sale_date_fitted.coef_
@@ -136,9 +154,22 @@ def create_reduction(control):
                 key2 = (fold_number, sale_date, sale_date_predictor_names[i])
                 test_coef[key2] = sale_date_coef[i]
 
+    # randomly select a subset of the fitted models
+    # stratify the sample to select one fitted model in each sale year
+    selected_somethings = {}
+    num_selected = 1
+    for sale_year, value_set in by_year.iteritems():
+        item = (random.sample(value_set, num_selected))[0]
+        fold_number, sale_date = item
+        fold_result = cv_result[fold_number]
+        raw_fold_result = fold_result.get_raw_fold_result()
+        something = raw_fold_result[sale_date]
+        selected_somethings[(fold_number, sale_date)] = something
+
     reduced_data = {'num_tests': num_tests,
-                    'test_coef': test_coef,
-                    'test_intercept': test_intercept,
+                    'selected_somethings': selected_somethings,
+                    'fitted_coef': test_coef,
+                    'fitted_intercept': test_intercept,
                     'actuals': actuals,
                     'estimates': estimates}
 
@@ -448,60 +479,130 @@ def create_charts(control, data):
             overall_rank += 1
         report.write(txt_path('ranking-by-month'))
 
-    def random_fitted_models(num_tests, test_coef, test_intercept):
+    def random_fitted_models(reduced_data):
+        'print details on selected fitted models'
+        selected_somethings = reduced_data['selected_somethings']
+        # key = (fold_number, sale_date)
+        # value = dict with keys
+        #   num_train, num_test,
+        #   estimates, actuals,
+        #   predictor_names
+        #   model,
+        #   fitted, with attributes: coef_, alpha_, ...
 
-        # determine predictor names
-        predictor_names = set()
-        for k, _ in test_coef.iteritems():
-            fold, sale_date, predictor_name = k
-            predictor_names.add(predictor_name)
+        # reorder in sale_year order
+        year_fold_date = []
+        for fold_number, sale_date in selected_somethings.keys():
+            year_fold_date.append([sale_date.year, fold_number, sale_date])
+        sorted_year_fold_date = sorted(year_fold_date)
 
-        # determine which models to sample
-        num_models = len(test_intercept)
-        num_to_print = 5
-        to_sample = random.sample(xrange(num_models), num_to_print)
-
-        # create dictionary with the report detail values
-        details = {}
-        counter = 0
-        for k, intercept in test_intercept.iteritems():
-            if counter in to_sample:
-                # create details for next column in the report
-                details[('**INTERCEPT**', counter)] = intercept
-                fold, sale_date = k
-                for predictor_name in predictor_names:
-                    key = (fold, sale_date, predictor_name)
-                    details[(predictor_name, counter)] = test_coef[key]
-            counter += 1
+        sorted_fold_date = []
+        for year, fold_number, sale_date in sorted_year_fold_date:
+            sorted_fold_date.append((fold_number, sale_date))
 
         report = Report()
-        format_name = '%25s '
-        format_index = '%9d '
-        format_coefficient = '%9.6f '
-
-        report.append('Randomly-selected Fitted Lasso CV Models')
+        report.append('Selected Fitted Lasso CV Models')
+        report.append('Selected randomly stratified by sale year')
         report.append(' ')
 
-        # print selected model indices
-        line = format_name % 'model index:'
-        for counter in to_sample:
-            line += format_index % counter
-        report.append(line)
+        format_tag = '%25s '
+        format_dollars = '%10.0f '
+        format_int = '%10d '
+        format_float = '%10.6f '
+        format_date = '%10s '
 
-        # print coefficients of predictors
+        def line(tag, formatter, f):
+            "return string with tag and one colum for each of the fitted models"
+            s = format_tag % tag
+            for fold_number, sale_date in sorted_fold_date:
+                key = (fold_number, sale_date)
+                selected_something = selected_somethings[key]
+                s += formatter % f(fold_number, sale_date, selected_something)
+            return s
+
+        def lassocv(selected_something, attribute_name):
+            """Return attribute from fitted model
+            Valid attributes are: alpha_, coef_, intercept_,
+            mse_path_, alphas_, dual_gap_, n_iter_
+            """
+            lassocv = selected_something['fitted']
+            return lassocv.__getattribute__(attribute_name)
+
+        def append_cols(tag, formatter, f):
+            report.append(line(tag, formatter, f))
+
+        # identify the model
+        append_cols('sale_date',
+                    format_date,
+                    lambda fn, sd, ss: sd.isoformat())
+        append_cols('fold',
+                    format_int,
+                    lambda fn, sd, ss: fn)
+
+        def actuals(selected_something):
+            return selected_something['actuals'].values
+
+        def estimates(selected_something):
+            return selected_something['estimates']
+
+        def errors(selected_something):
+            return actuals(selected_something) - estimates(selected_something)
+
+        def mean_price(selected_something):
+            return np.mean(actuals(selected_something))
+
+        def mean_error(selected_something):
+            return np.mean(errors(selected_something))
+
+        def mean_abs_error(selected_something):
+            return np.mean(np.abs(errors(selected_something)))
+
+        def mean_abs_relative_error(selected_something):
+            return np.mean(
+                np.abs(errors(selected_something) / actuals(selected_something))
+            )
+
+        report.append(' ')
+        append_cols('mean price',
+                    format_dollars,
+                    lambda fn, sd, ss: mean_price(ss))
+        append_cols('mean error (y - yhat)',
+                    format_dollars,
+                    lambda fn, sd, ss: mean_error(ss))
+        append_cols('mean abs error',
+                    format_dollars,
+                    lambda fn, sd, ss: mean_abs_error(ss))
+        append_cols('mean abs relative error',
+                    format_float,
+                    lambda fn, sd, ss: mean_abs_relative_error(ss))
+
+        append_cols('num_train',
+                    format_int,
+                    lambda fn, sd, ss: ss['num_train'])
+        append_cols('num_test',
+                    format_int,
+                    lambda fn, sd, ss: ss['num_test'])
+        report.append(' ')
+        append_cols('alpha_',
+                    format_float,
+                    lambda fn, sd, ss: lassocv(ss, 'alpha_'))
+        report.append(' ')
+        append_cols('intercept',
+                    format_float,
+                    lambda fn, sd, ss: lassocv(ss, 'intercept_'))
+
+        # write coefficients
+        predictor_names = []
+        for k, v in selected_somethings.iteritems():
+            predictor_names = v['predictor_names']
+            break
+
+        offset = -1
         for predictor_name in predictor_names:
-            line = format_name % predictor_name
-            for counter in to_sample:
-                key = (predictor_name, counter)
-                line += format_coefficient % details[key]
-            report.append(line)
-
-        # print intercepts
-        line = format_name % '**INTERCEPT**'
-        for counter in to_sample:
-            key = ('**INTERCEPT**', counter)
-            line += format_coefficient % details[key]
-        report.append(line)
+            offset += 1
+            append_cols(predictor_name,
+                        format_float,
+                        lambda fn, sd, ss: lassocv(ss, 'coef_')[offset])
 
         report.write(txt_path('randomly-selected-fitted-models'))
 
@@ -605,14 +706,12 @@ def create_charts(control, data):
 
     num_fitted_models, predictors_ordered, counts = \
         make_counts(num_tests=data['num_tests'],
-                    test_coef=data['test_coef'])
+                    test_coef=data['fitted_coef'])
 
-    random_fitted_models(num_tests=data['num_tests'],
-                         test_coef=data['test_coef'],
-                         test_intercept=data['test_intercept'])
+    random_fitted_models(data)
     mean_coefficients_all_periods(num_tests=data['num_tests'],
-                                  test_coef=data['test_coef'],
-                                  test_intercept=data['test_intercept'],
+                                  test_coef=data['fitted_coef'],
+                                  test_intercept=data['fitted_intercept'],
                                   actuals=data['actuals'],
                                   estimates=data['estimates'])
     title = 'Percent of All Models with Non-Zero Coefficients'
