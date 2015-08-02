@@ -12,14 +12,16 @@ class FoldResult(object):
     '''Computations on a cross validation fold.'''
 
     def __init__(self):
-        # vectors of results
+        # vectors of results across all dates
         self.actuals = np.array([])
         self.estimates = np.array([])
-        # dictionaries of results, key = test_sale_date
+        # dictionaries of results
+        #  key = train_sale_date
+        #  value depends on the caller
         self.raw_fold_result = {}
 
-    def save_raw_fold_result(self, date, raw_fold_results):
-        self.raw_fold_result[date] = raw_fold_results
+    def save_raw_fold_result(self, date, something):
+        self.raw_fold_result[date] = something
 
     def get_raw_fold_result(self):
         return self.raw_fold_result
