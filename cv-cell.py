@@ -29,6 +29,7 @@ import sklearn
 from statsmodels.regression.quantile_regression import QuantReg
 import numpy as np
 import pandas as pd
+from pprint import pprint
 import warnings
 
 # import my stuff
@@ -42,7 +43,7 @@ import parse_command_line
 
 
 def make_control(argv):
-    # return a Bunch
+    '''Return control variables in a Bunch object'''
 
     script_name = argv[0]
     cell_specifier = argv[1]
@@ -93,7 +94,6 @@ def check_sale_datetime(dt):
     '''Check that the time components are always zero.'''
     # NOTE: This code doesn't work, as there are not such fields
     # MAYBE FIX: use pd.DateTimeIndex when creating
-    pdb.set_trace()
     ok = dt.hour == 0 and \
         dt.minute == 0 and \
         dt.second == 0 and \
@@ -203,7 +203,6 @@ def transform_to_log(df_list, transformation):
 
 def make_xy(test_date, test, train, control):
     '''Return test_x, train_x, train_y.'''
-    pdb.set_trace()
     transformation = features(control.predictors)
     predictor_names = transformation.keys()
 
@@ -263,7 +262,6 @@ class Quantile50(object):
         self.q = .5
 
     def fit(self, train_x, train_y):
-        pdb.set_trace()
         m = QuantReg(endog=train_y,  # response variable
                      exog=train_x)   # explanatory variables
         with warnings.catch_warnings():
@@ -288,16 +286,12 @@ class Quantile50(object):
         return fitted
 
     def predict(fitted, test_x):
-        pdb.set_trace()
         estimates = QuantReg.predict(params=fitted.params, exog=test_x)
         return estimates
 
 
 def fit_model(train_x, train_y, control):
-    '''Return fitted model instance.
-
-    Pass control structure, because may need hyperparameters.
-    '''
+    """Return fitted model instance."""
     # TODO: convert code to structure similar to quantile50
     # - build a class that does the fitting and predicting
     # - that puts together the peculiar features of each API
@@ -333,7 +327,6 @@ def fit_model(train_x, train_y, control):
             print fitted
         return fitted
     elif control.model == 'elasticnet':
-        pdb.set_trace()
         alpha = 1.0     # multiply penalty terms by 1
         l1_ratio = 1.0  # use L1 penalty, not L2
         fit_intercept = True
@@ -549,7 +542,6 @@ def make_cv_result(df, control):
                                 random_state=control.random_state)
 
     # for each fold
-    pdb.set_trace()
     cvresult = CvResult()
     fold_number = 0
     for train_indices, test_indices in kf:
@@ -592,7 +584,6 @@ def main():
             raise ValueError('a sale.python_date is null')
 
     print "making the cross validation result"
-    pdb.set_trace()
     cv_result = make_cv_result(df=df, control=control)
 
     # write cross validation result
@@ -604,4 +595,8 @@ def main():
     print 'done'
 
 if __name__ == '__main__':
+    # use some imports to avoid warning
+    if False:
+        pdb.set_trace()
+        pprint(None)
     main()
