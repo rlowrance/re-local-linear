@@ -867,6 +867,14 @@ class TestVobj(unittest.TestCase):
         self.assert_equal_Vfloat64(r[1], r2[1])
         self.assertNotEqual(r[2], r2[2])
 
+    def test_join(self):
+        va = Vobj(['a', 10])
+        vb = Vobj([True, 23.0])
+        r = va.join(vb)
+        self.assertEqual(len(r), 4)
+        self.assertEqual(r[0], 'a')
+        self.assertEqual(r[3], 23.0)
+
 
 class TestD(unittest.TestCase):
     def test_construction_from_two_lists(self):
