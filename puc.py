@@ -1,13 +1,14 @@
 '''Python Uniform Containers that mimic K's container types'''
 
 import abc
+import collections
 import numpy as np
 import pandas as pd
 import pdb
 import unittest
 
 
-class V(object):
+class PUC(object):
     __metaclass__ = abc.ABCMeta
 
     def __len__(self):
@@ -45,6 +46,7 @@ class V(object):
               if Vint1
               then return a Vfloat64 as selected by 1 values
         '''
+        # note: in Q, indexing a missing item result in null, not an error
         if isinstance(key, (int, long)):
             # note: in Python 3, int and long are the same type
             return self.nparray[key]
@@ -55,6 +57,7 @@ class V(object):
         if isinstance(key, Vbool):
             self._validate_len_key(key)
             return Cls(self.nparray[key.nparray])
+        # TODO: extend to allow indexing by Vobj
         raise IndexError('type(key) = ' + type(key))
 
     def _setitem(self, key, value):
@@ -73,8 +76,26 @@ class V(object):
             return
         raise IndexError('type(key) = ' + type(key))
 
+    def _join(self, other):
+        'extend self by appending each element of other'
+        # Q operator
+        pass
 
-class Vfloat64(V):
+    def _find(self, other):
+        'return indices of each element of other in self'
+        # Q operator
+        pass
+
+    def _equal(self, other):
+        'order is significant'
+        pass
+
+    def _identical(self, other):
+        'have same adddress'
+        pass
+
+
+class Vfloat64(PUC):
     '64-bit floating point vector'
 
     def __init__(self, obj):
@@ -113,7 +134,7 @@ class Vfloat64(V):
         raise TypeError('type(other) = ' + type(other))
 
 
-class Vint64(V):
+class Vint64(PUC):
     '64-bit integer vector'
 
     def __init__(self, obj):
@@ -158,7 +179,7 @@ class Vint64(V):
         raise TypeError('type(other) = ' + type(other))
 
 
-class Vbool(V):
+class Vbool(PUC):
     'boolean vector'
 
     def __init__(self, obj):
@@ -203,19 +224,70 @@ class Vbool(V):
         raise TypeError('type(other) = ' + type(other))
 
 
+def Vobj(PUC):
+    'vector of arbitrary objects'
+    pass
+
+
 class D(object):
     'dictionary with [] extended to allow for a sequence'
 
-    def __init__(self, obj):
-        '''initialize from Python dict'''
-        self.d = dict(obj)
+    def __init__(self, key_list, value_list):
+        '''initialize'''
+        # Note: in Q, the keys do not need to be unique
+        self.d = None  # TODO: write me
+
+    def keys(self):
+        '''return list of keys'''
+        pass
+
+    def cols(self):
+        return self.keys()
+
+    def values(self):
+        '''return list of values'''
+
+    def equal(self, other):
+        '''order of keys is significant; not the identity operator
+
+        If other is a V, compare self.values and other
+        '''
+        pass
+
+    def identical(self, other):
+        'have the same address'
+        pass
+
+    def find(self, other):
+        'reverse lookup; always succeeds, possibly returning None'
+        pass
+
+    def join(self, other):
+        'the mapping in other dominates'
+        pass
 
     def as_python_dict(self):
         '''return Python dict'''
+        return self.d
+
+    def take(self, keys):
+        '''return new D with the keys and self[keys]'''
+        pass
+
+    def __del__(self, key):
+        '''delete key and value
+
+        in Q, removing a key that does not exist has no effect
+        '''
+        pass
+
+    def add(self, other):
+        '''Perform + on command keys; others merge (as in join)
+        '''
         pass
 
     def __getitem__(self, key):
-        '''return value or another D
+        '''return Python list of same shape as key or scalar or None
 
         ARGS
         key : if scalar
@@ -223,8 +295,32 @@ class D(object):
 
               if a sequence (including a V)
               then return {v[0], v[1], ... }
+
+        In Q, if keys are not of uniform shape, the lookup fails
+        at the first key of a different shape.
         '''
-        pass
+        if isinstance(key, Vfloat64):
+            raise IndexError('attempt to index D by Vfloat64')
+        if isinstance(key, (Vint64, Vbool)):
+            result = []
+            for key_value in np.nditer(key.nparray):
+                if key_value in self.d:
+                    result.append(self.d[key_value])
+                else:
+                    result.append(None)
+            return key_value
+        if isinstance(key, collections.Iterable):
+            result = []
+            for key_value in key:
+                if key_value in self.d:
+                    result.append(self.d[key_value])
+                else:
+                    result.append(None)
+            return key_value
+        if key in self.d:
+            return self.d[key]
+        else:
+            return None
 
     def __setitem__(sefl, key, value):
         '''mutate and return self'''
@@ -318,7 +414,7 @@ class TestVfloat64(unittest.TestCase):
         x = [10, 23]
         v = Vfloat64(x)
         self.assertTrue(isinstance(v, Vfloat64))
-        self.assertTrue(isinstance(v, V))
+        self.assertTrue(isinstance(v, PUC))
         self.assertTrue(len(v) == 2)
         # TODO: these don't work until __getitem__ is implemented
         self.assertTrue(v[0] == 10.0)
@@ -451,7 +547,7 @@ class TestVint64(unittest.TestCase):
         x = [10, 23]
         v = Vint64(x)
         self.assertTrue(isinstance(v, Vint64))
-        self.assertTrue(isinstance(v, V))
+        self.assertTrue(isinstance(v, PUC))
         self.assertTrue(len(v) == 2)
         self.assertEqual(v[0], 10)
         self.assertEqual(v[1], 23)
@@ -510,7 +606,7 @@ class TestVbool(unittest.TestCase):
         x = [False, True]
         v = Vbool(x)
         self.assertTrue(isinstance(v, Vbool))
-        self.assertTrue(isinstance(v, V))
+        self.assertTrue(isinstance(v, PUC))
         self.assertTrue(len(v) == 2)
         self.assertEqual(v[0], False)
         self.assertEqual(v[1], True)
@@ -549,6 +645,16 @@ class TestVbool(unittest.TestCase):
         self.assert_equal_Vint64(r, Vint64([2, 3]))
         r = va.add(True)
         self.assert_equal_Vint64(r, Vint64([1, 2]))
+
+
+class TestVobj(unittest.TestCase):
+    def test_construction_from_list(self):
+        self.assertTrue(False)  # write me
+
+
+class TestD(unittest.TestCase):
+    def test_construction_from_two_lists(self):
+        self.assertTrue(False)  # write me
 
 
 if __name__ == '__main__':
