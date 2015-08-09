@@ -7,8 +7,11 @@ import pandas as pd
 import pdb
 import unittest
 
+
 class PUC(object):
-    __metaclass_ == abc.ABCMeta
+    __metaclass__ = abc.ABCMeta
+    pass
+
 
 class V(PUC):
     __metaclass__ = abc.ABCMeta
@@ -85,6 +88,9 @@ class V(PUC):
 
     def _find(self, other):
         'return indices of each element of other in self'
+        if isinstance(other, V):
+            # np.append appends to copy of first arg
+            return np.append(self.nparray, other.nparray)
         # Q operator
         pass
 
@@ -125,7 +131,11 @@ class Vfloat64(V):
         'return new Vfloat64'
         return Vfloat64(np.exp(self.nparray))
 
-    def add(self, other):
+    def __radd__(self, other):
+        'other + V'
+        return self.__add__(other)
+
+    def __add__(self, other):
         'return new Vfloat64'
         if isinstance(other, (Vfloat64, Vint64, Vbool)):
             return Vfloat64(np.add(self.nparray, other.nparray))
@@ -133,7 +143,16 @@ class Vfloat64(V):
             # int, long, float
             return Vfloat64(np.add(self.nparray,
                                    np.full(self.nparray.shape, other)))
-        raise TypeError('type(other) = ' + type(other))
+        raise TypeError('type(other) = ' + str(type(other)))
+
+    def join(self, other):
+        'append other to self; do not type conversions'
+        if isinstance(other, Vfloat64):
+            # np.append appends to copy of first arg
+            return Vfloat64(np.append(self.nparray, other.nparray))
+        if isinstance(other, float):
+            return Vfloat64(np.append(self.nparray, np.array([other])))
+        raise TypeError('type(other) = ' + str(type(other)))
 
 
 class Vint64(V):
@@ -160,7 +179,11 @@ class Vint64(V):
     def __setitem__(self, key, value):
         self._setitem(key, value)
 
-    def add(self, other):
+    def __radd__(self, other):
+        'other + V'
+        return self.__add__(other)
+
+    def __add__(self, other):
         'return new V'
         if isinstance(other, Vfloat64):
             return Vfloat64(np.add(self.nparray, other.nparray))
@@ -179,6 +202,15 @@ class Vint64(V):
                 return Vint64(np.add(self.nparray,
                                      np.full(self.nparray.shape, other)))
         raise TypeError('type(other) = ' + type(other))
+
+    def join(self, other):
+        'append other to self; do not type conversions'
+        if isinstance(other, Vint64):
+            # np.append appends to copy of first arg
+            return Vint64(np.append(self.nparray, other.nparray))
+        if isinstance(other, (int, long, bool)):
+            return Vint64(np.append(self.nparray, np.array([other])))
+        raise TypeError('type(other) = ' + str(type(other)))
 
 
 class Vbool(V):
@@ -205,8 +237,12 @@ class Vbool(V):
     def __setitem__(self, key, value):
         self._setitem(key, value)
 
-    def add(self, other):
-        'return new V'
+    def __radd__(self, other):
+        'return new V: other + vbool'
+        return self.__add__(other)
+
+    def __add__(self, other):
+        'return new V: Vbool + other'
         if isinstance(other, Vfloat64):
             return Vfloat64(np.add(self.nparray, other.nparray))
         if isinstance(other, Vint64):
@@ -225,11 +261,62 @@ class Vbool(V):
                                        np.full(self.nparray.shape, other)))
         raise TypeError('type(other) = ' + type(other))
 
+    def join(self, other):
+        'append other to self; do not type conversions'
+        if isinstance(other, Vbool):
+            # np.append appends to copy of first arg
+            return Vbool(np.append(self.nparray, other.nparray))
+        if isinstance(other, (bool)):
+            return Vbool(np.append(self.nparray, np.array([other])))
+        raise TypeError('type(other) = ' + str(type(other)))
 
-def Vobj(V):
+
+class Vobj(V):
     'vector of arbitrary objects'
-    pass
+    def __init__(self, obj):
+        self.nparray = np.array(
+            obj,
+            dtype=np.object,
+            copy=True,
+            order='C',
+            subok=False,
+            ndmin=1)
 
+    def __str__(self):
+        return 'Vobj(' + super(Vobj, self)._items() + ')'
+
+    def __repr__(self):
+        return 'Vobj([' + super(Vobj, self)._items() + '])'
+
+    def __getitem__(self, key):
+        return self._getitem(Vobj, key)
+
+    def __setitem__(self, key, value):
+        self._setitem(key, value)
+
+    def __radd__(self, other):
+        'other + VObj'
+        # TODO: fix, does not work for string concatenation
+        return self.__add__(other)
+
+    def __add__(self, other):
+        'Vobj + other'
+        if isinstance(other, V):
+            if len(self.nparray) != len(other.nparray):
+                msg = 'different lengths: %d, %d' % (len(self.nparray), len(other.nparray))
+                raise TypeError(msg)
+            result = np.empty(shape=(len(self.nparray)), dtype=object)
+            for i in xrange(len(self.nparray)):
+                a = self.nparray[i]
+                b = other.nparray[i]
+                try:
+                    r = a + b
+                except TypeError, m:
+                    msg = 'type(a) %s type(b) %s' % (type(a), type(b))
+                    raise TypeError(m + ' ' + msg)
+                result[i] = r
+            return Vobj(result)
+        raise NotImplemented('implement other cases')
 
 class D(PUC):
     'dictionary with [] extended to allow for a sequence'
@@ -495,39 +582,66 @@ class TestVfloat64(unittest.TestCase):
         self.assertAlmostEqual(v[2], 3)
         self.assertAlmostEqual(e[2], 20.08, 1)
 
-    def test_add(self):
-        # add(float, float)
+    def test_plus(self):
+        # plus(float, float)
         va = Vfloat64([10, 20])
         vb = Vfloat64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 110.0)
         self.assertEqual(r[1], 220.0)
 
-        # add(float, int)
+        # plus(float, int)
         vb = Vint64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 110.0)
         self.assertEqual(r[1], 220.0)
 
-        # add(float, bool)
+        # plus(float, bool)
         vb = Vbool([False, True])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 10)
         self.assertEqual(r[1], 21)
 
         # test propagation of scalars: float, int, bool
-        r = va.add(1.0)
+        r = va + 1.0
         self.assert_equal_Vfloat64(r, Vfloat64([11, 21]))
-        r = va.add(2)
+        r = va + 2
         self.assert_equal_Vfloat64(r, Vfloat64([12, 22]))
-        r = va.add(True)
+        r = va + True
         self.assert_equal_Vfloat64(r, Vfloat64([11, 21]))
+
+    def test_join(self):
+
+        # other is Vfloat64
+        va = Vfloat64([10, 20])
+        vb = Vfloat64([100, 200])
+        r = va.join(vb)
+        self.assertTrue(isinstance(r, Vfloat64))
+        self.assertEqual(len(r), 4)
+        self.assertEqual(r[0], 10.0)
+        self.assertEqual(r[3], 200.0)
+
+        # other is float
+        r = va.join(23.0)
+        self.assertTrue(isinstance(r, Vfloat64))
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 10.0)
+        self.assertEqual(r[2], 23.0)
+
+        # other is anything else
+        for other in (True, 23, Vint64([100, 200]), Vbool([False, True])):
+            try:
+                v = va.join(other)
+                print other, v
+                self.assertTrue(False)  # expected to throw
+            except TypeError:
+                self.assertTrue(True)
 
 
 class TestVint64(unittest.TestCase):
@@ -554,39 +668,74 @@ class TestVint64(unittest.TestCase):
         self.assertEqual(v[0], 10)
         self.assertEqual(v[1], 23)
 
-    def test_add(self):
-        # add(int, float)
+    def test_plus(self):
+        # plus(int, float)
         va = Vint64([10, 20])
         vb = Vfloat64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 110.0)
         self.assertEqual(r[1], 220.0)
 
-        # add(int, int)
+        # plus(int, int)
         vb = Vint64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 110)
         self.assertEqual(r[1], 220)
 
-        # add(int, bool)
+        # plus(int, bool)
         vb = Vbool([False, True])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 10)
         self.assertEqual(r[1], 21)
 
         # test propagation of scalars: float, int, bool
-        r = va.add(1.0)
+        r = va + 1.0
         self.assert_equal_Vfloat64(r, Vfloat64([11, 21]))
-        r = va.add(2)
+        r = va + 2
         self.assert_equal_Vint64(r, Vint64([12, 22]))
-        r = va.add(True)
+        r = va + True
         self.assert_equal_Vint64(r, Vint64([11, 21]))
+
+    def test_join(self):
+
+        # other is Vint64
+        va = Vint64([10, 20])
+        vb = Vint64([100, 200])
+        r = va.join(vb)
+        self.assertTrue(isinstance(r, Vint64))
+        self.assertEqual(len(r), 4)
+        self.assertEqual(r[0], 10)
+        self.assertEqual(r[3], 200)
+
+        # other is long
+        r = va.join(23L)
+        self.assertTrue(isinstance(r, Vint64))
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 10)
+        self.assertEqual(r[2], 23)
+
+        # other is bool
+        r = va.join(True)
+        self.assertTrue(isinstance(r, Vint64))
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 10)
+        self.assertEqual(r[2], 1)
+
+        # other is anything else
+        others = (23.0, Vfloat64([100, 200]), Vbool([False, True]))
+        for other in others:
+            try:
+                v = va.join(other)
+                print other, v
+                self.assertTrue(False)  # expected to throw
+            except TypeError:
+                self.assertTrue(True)
 
 
 class TestVbool(unittest.TestCase):
@@ -613,45 +762,110 @@ class TestVbool(unittest.TestCase):
         self.assertEqual(v[0], False)
         self.assertEqual(v[1], True)
 
-    def test_add(self):
-        # add(bool, float)
+    def test_plus(self):
+        # plus(bool, float)
         va = Vbool([False, True])
         vb = Vfloat64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 100)
         self.assertEqual(r[1], 201)
 
-        # add(bool, int)
+        # plus(bool, int)
         vb = Vint64([100, 200])
-        r = va.add(vb)
+        r = va + vb
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 100)
         self.assertEqual(r[1], 201)
 
-        # add(bool, bool)
+        # plus(bool, bool)
         vb = Vbool([False, True])
-        r = va.add(vb)  # numpy treats this as or, not +
-        print r
+        r = va + vb  # numpy treats this as or, not +
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 2)
         self.assertEqual(r[0], 0)
         self.assertEqual(r[1], 2)
 
         # test propagation of scalars: float, int, bool
-        r = va.add(1.0)
+        r = va + 1.0
         self.assert_equal_Vfloat64(r, Vfloat64([1, 2]))
-        r = va.add(2)
+        r = va + 2
         self.assert_equal_Vint64(r, Vint64([2, 3]))
-        r = va.add(True)
+        r = va + True
         self.assert_equal_Vint64(r, Vint64([1, 2]))
+
+    def test_join(self):
+
+        # other is Vbool
+        va = Vbool([False, True])
+        vb = Vbool([True, False])
+        r = va.join(vb)
+        self.assertTrue(isinstance(r, Vbool))
+        self.assertEqual(len(r), 4)
+        self.assertEqual(r[0], 0)
+        self.assertEqual(r[3], 0)
+
+        # other is bool
+        r = va.join(True)
+        self.assertTrue(isinstance(r, Vbool))
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 0)
+        self.assertEqual(r[2], 1)
+
+        # other is anything else
+        others = (20, 23.0, Vfloat64([100, 200]), Vint64([20]))
+        for other in others:
+            try:
+                v = va.join(other)
+                print other, v
+                self.assertTrue(False)  # expected to throw
+            except TypeError:
+                self.assertTrue(True)
 
 
 class TestVobj(unittest.TestCase):
+    def assert_equal_Vfloat64(self, a, b):
+        self.assertTrue(isinstance(a, Vfloat64))
+        self.assertTrue(isinstance(b, Vfloat64))
+        self.assertEqual(len(a), len(b))
+        for i in xrange(len(a)):
+            self.assertAlmostEqual(a[i], b[i])
+
+    def assert_equal_Vobj(self, a, b):
+        self.assertTrue(isinstance(a, Vobj))
+        self.assertTrue(isinstance(b, Vobj))
+        self.assertEqual(len(a), len(b))
+        for i in xrange(len(a)):
+            self.assertEqual(a[i], b[i])
+
     def test_construction_from_list(self):
-        self.assertTrue(False)  # write me
+        f64 = Vfloat64([10, 20])
+        x = [True, 23.0, f64, 'abc']
+        v = Vobj(x)
+        self.assertTrue(isinstance(v, Vobj))
+        self.assertTrue(isinstance(v, V))
+        self.assertEqual(len(v), 4)
+        self.assertEqual(v[0], True)
+        self.assertEqual(v[1], 23.0)
+        self.assert_equal_Vfloat64(v[2], f64)
+        self.assertEqual(v[3], 'abc')
+
+    def test_add(self):
+        # Vobj + Vobj
+        va = Vobj([10, Vfloat64([100, 200]), 'abc'])
+        vb = Vobj([20, 1, 'def'])
+        r = va + vb
+        self.assertTrue(isinstance(r, Vobj))
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 30.0)
+        self.assert_equal_Vfloat64(r[1], Vfloat64([101, 201]))
+        self.assertEqual(r[2], 'abcdef')
+        r2 = vb + va
+        self.assertEqual(r[0], r2[0])
+        self.assert_equal_Vfloat64(r[1], r2[1])
+        self.assertNotEqual(r[2], r2[2])
 
 
 class TestD(unittest.TestCase):
