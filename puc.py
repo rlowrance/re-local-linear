@@ -7,8 +7,10 @@ import pandas as pd
 import pdb
 import unittest
 
-
 class PUC(object):
+    __metaclass_ == abc.ABCMeta
+
+class V(PUC):
     __metaclass__ = abc.ABCMeta
 
     def __len__(self):
@@ -95,7 +97,7 @@ class PUC(object):
         pass
 
 
-class Vfloat64(PUC):
+class Vfloat64(V):
     '64-bit floating point vector'
 
     def __init__(self, obj):
@@ -134,7 +136,7 @@ class Vfloat64(PUC):
         raise TypeError('type(other) = ' + type(other))
 
 
-class Vint64(PUC):
+class Vint64(V):
     '64-bit integer vector'
 
     def __init__(self, obj):
@@ -179,7 +181,7 @@ class Vint64(PUC):
         raise TypeError('type(other) = ' + type(other))
 
 
-class Vbool(PUC):
+class Vbool(V):
     'boolean vector'
 
     def __init__(self, obj):
@@ -224,12 +226,12 @@ class Vbool(PUC):
         raise TypeError('type(other) = ' + type(other))
 
 
-def Vobj(PUC):
+def Vobj(V):
     'vector of arbitrary objects'
     pass
 
 
-class D(object):
+class D(PUC):
     'dictionary with [] extended to allow for a sequence'
 
     def __init__(self, key_list, value_list):
