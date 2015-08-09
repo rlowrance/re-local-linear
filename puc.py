@@ -81,7 +81,7 @@ class V(PUC):
             return
         raise IndexError('type(key) = ' + type(key))
 
-    def _join(self, other):
+    def _concatenate(self, other):
         'extend self by appending each element of other'
         # Q operator
         pass
@@ -145,7 +145,7 @@ class Vfloat64(V):
                                    np.full(self.nparray.shape, other)))
         raise TypeError('type(other) = ' + str(type(other)))
 
-    def join(self, other):
+    def concatenate(self, other):
         'append other to self; do not type conversions'
         if isinstance(other, Vfloat64):
             # np.append appends to copy of first arg
@@ -203,7 +203,7 @@ class Vint64(V):
                                      np.full(self.nparray.shape, other)))
         raise TypeError('type(other) = ' + type(other))
 
-    def join(self, other):
+    def concatenate(self, other):
         'append other to self; do not type conversions'
         if isinstance(other, Vint64):
             # np.append appends to copy of first arg
@@ -261,7 +261,7 @@ class Vbool(V):
                                        np.full(self.nparray.shape, other)))
         raise TypeError('type(other) = ' + type(other))
 
-    def join(self, other):
+    def concatenate(self, other):
         'append other to self; do not type conversions'
         if isinstance(other, Vbool):
             # np.append appends to copy of first arg
@@ -318,6 +318,15 @@ class Vobj(V):
             return Vobj(result)
         raise NotImplemented('implement other cases')
 
+    def concatenate(self, other):
+        if isinstance(other, V):
+            return Vobj(np.append(self.nparray, other.nparray))
+        try:
+            return Vobj(np.append(self.nparray, other))
+        except:
+            raise TypeError('other is type %s' % type(other))
+        raise TypeError('other is type %s' % type(other))
+
 class D(PUC):
     'dictionary with [] extended to allow for a sequence'
 
@@ -351,7 +360,7 @@ class D(PUC):
         'reverse lookup; always succeeds, possibly returning None'
         pass
 
-    def join(self, other):
+    def concatenate(self, other):
         'the mapping in other dominates'
         pass
 
@@ -371,7 +380,7 @@ class D(PUC):
         pass
 
     def add(self, other):
-        '''Perform + on command keys; others merge (as in join)
+        '''Perform + on command keys; others merge (as in concatenate)
         '''
         pass
 
@@ -616,19 +625,19 @@ class TestVfloat64(unittest.TestCase):
         r = va + True
         self.assert_equal_Vfloat64(r, Vfloat64([11, 21]))
 
-    def test_join(self):
+    def test_concatenate(self):
 
         # other is Vfloat64
         va = Vfloat64([10, 20])
         vb = Vfloat64([100, 200])
-        r = va.join(vb)
+        r = va.concatenate(vb)
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 4)
         self.assertEqual(r[0], 10.0)
         self.assertEqual(r[3], 200.0)
 
         # other is float
-        r = va.join(23.0)
+        r = va.concatenate(23.0)
         self.assertTrue(isinstance(r, Vfloat64))
         self.assertEqual(len(r), 3)
         self.assertEqual(r[0], 10.0)
@@ -637,7 +646,7 @@ class TestVfloat64(unittest.TestCase):
         # other is anything else
         for other in (True, 23, Vint64([100, 200]), Vbool([False, True])):
             try:
-                v = va.join(other)
+                v = va.concatenate(other)
                 print other, v
                 self.assertTrue(False)  # expected to throw
             except TypeError:
@@ -702,26 +711,26 @@ class TestVint64(unittest.TestCase):
         r = va + True
         self.assert_equal_Vint64(r, Vint64([11, 21]))
 
-    def test_join(self):
+    def test_concatenate(self):
 
         # other is Vint64
         va = Vint64([10, 20])
         vb = Vint64([100, 200])
-        r = va.join(vb)
+        r = va.concatenate(vb)
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 4)
         self.assertEqual(r[0], 10)
         self.assertEqual(r[3], 200)
 
         # other is long
-        r = va.join(23L)
+        r = va.concatenate(23L)
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 3)
         self.assertEqual(r[0], 10)
         self.assertEqual(r[2], 23)
 
         # other is bool
-        r = va.join(True)
+        r = va.concatenate(True)
         self.assertTrue(isinstance(r, Vint64))
         self.assertEqual(len(r), 3)
         self.assertEqual(r[0], 10)
@@ -731,7 +740,7 @@ class TestVint64(unittest.TestCase):
         others = (23.0, Vfloat64([100, 200]), Vbool([False, True]))
         for other in others:
             try:
-                v = va.join(other)
+                v = va.concatenate(other)
                 print other, v
                 self.assertTrue(False)  # expected to throw
             except TypeError:
@@ -796,19 +805,19 @@ class TestVbool(unittest.TestCase):
         r = va + True
         self.assert_equal_Vint64(r, Vint64([1, 2]))
 
-    def test_join(self):
+    def test_concatenate(self):
 
         # other is Vbool
         va = Vbool([False, True])
         vb = Vbool([True, False])
-        r = va.join(vb)
+        r = va.concatenate(vb)
         self.assertTrue(isinstance(r, Vbool))
         self.assertEqual(len(r), 4)
         self.assertEqual(r[0], 0)
         self.assertEqual(r[3], 0)
 
         # other is bool
-        r = va.join(True)
+        r = va.concatenate(True)
         self.assertTrue(isinstance(r, Vbool))
         self.assertEqual(len(r), 3)
         self.assertEqual(r[0], 0)
@@ -818,7 +827,7 @@ class TestVbool(unittest.TestCase):
         others = (20, 23.0, Vfloat64([100, 200]), Vint64([20]))
         for other in others:
             try:
-                v = va.join(other)
+                v = va.concatenate(other)
                 print other, v
                 self.assertTrue(False)  # expected to throw
             except TypeError:
@@ -867,13 +876,17 @@ class TestVobj(unittest.TestCase):
         self.assert_equal_Vfloat64(r[1], r2[1])
         self.assertNotEqual(r[2], r2[2])
 
-    def test_join(self):
+    def test_concatenate(self):
         va = Vobj(['a', 10])
         vb = Vobj([True, 23.0])
-        r = va.join(vb)
+        r = va.concatenate(vb)
         self.assertEqual(len(r), 4)
         self.assertEqual(r[0], 'a')
         self.assertEqual(r[3], 23.0)
+        r = va.concatenate('abc')
+        self.assertEqual(len(r), 3)
+        self.assertEqual(r[0], 'a')
+        self.assertEqual(r[2], 'abc')
 
 
 class TestD(unittest.TestCase):
