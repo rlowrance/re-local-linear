@@ -70,27 +70,6 @@ def x(mode, df, control):
         index += 1
     return array.T, control.predictors.keys()
 
-    df2 = df.copy(deep=True)
-    if mode == 'log':
-        # some features are transformed to log, some to log1p, some not at all
-        for predictor_name, transformation in control.predictors.iteritems():
-            if transformation == 'log':
-                df2[predictor_name] = \
-                    pd.Series(np.log(df[predictor_name]),
-                              index=df.index)
-            elif transformation == 'log1p':
-                df2[predictor_name] = \
-                    pd.Series(np.log1p(df[predictor_name]),
-                              index=df.index)
-            elif transformation is None:
-                pass
-            else:
-                raise RuntimeError('bad transformation: ' + transformation)
-    selected_columns = control.predictors.keys()
-    # force dtype, otherwise will be dtype=object
-    array = np.array(df2[selected_columns].values, np.float64)
-    return array, selected_columns
-
 
 def y(mode, df, control):
     '''return np.array 1D with transformed price column from df'''
@@ -138,9 +117,10 @@ class Ols(object):
         '''
         # implement variants
         verbose = False
+        debug = True
         all_variants = {}
-        for x_mode in ('log', 'linear'):
-            for y_mode in ('log', 'linear'):
+        for x_mode in ('linear',) if debug else ('log', 'linear'):
+            for y_mode in ('log',) if debug else ('log', 'linear'):
                 train_x, x_names = x(x_mode, train, control)
                 test_x, _ = x(x_mode, test, control)
                 train_y = y(y_mode, train, control)
@@ -148,6 +128,11 @@ class Ols(object):
                     train_x=train_x,
                     train_y=train_y,
                     test_x=test_x)
+                if debug:
+                    print 'train_x.shape', train_x.shape
+                    if fitted_model is not None:
+                        print 'coef_', fitted_model.coef_
+                        print 'estimates', estimates
                 key = ('x_mode', x_mode, 'y_mode', y_mode)
                 value = {
                     'model': fitted_model,  # contains coefficient and intercept
@@ -258,6 +243,7 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
+    debug = True
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
@@ -266,19 +252,21 @@ def make_control(argv):
         sale_dates=[sale_date],
         models={'ols': Ols()},
         scopes=['global', 'zip'],
-        training_days=range(7, 366, 7),
+        training_days=range(7, 14 if debug else 366, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
-        debug=False)
+        debug=debug)
     return b
 
 
 def within_training_days(sale_date, training_days, df):
     'Return df containing only samples within training_days days of sale_date'
-    first_ok_sale_date = sale_date - datetime.timedelta(training_days)
+    assert(training_days > 0)
+    # one training day means use samples on the sale date only
+    first_ok_sale_date = sale_date - datetime.timedelta(training_days - 1)
     date_column = 'sale.python_date'
-    after = df[date_column] > first_ok_sale_date
+    after = df[date_column] >= first_ok_sale_date
     before = df[date_column] <= sale_date
     ok_indices = np.logical_and(after, before)
     ok_df = df.loc[ok_indices]  # mask selection
@@ -326,8 +314,8 @@ def report(sale_date, training_days, model_name, scope, run_result, control):
         median_abs_error = np.median(abs_error)
         return median_abs_error
 
-    format_global_fold = '%10s %2d %3s %6s %3s %3s f%02d %6.0f %3.2f'
-    format_zip_fold = '%10s %2d %3s %6d %3s %3s f%02d %6.0f %3.2f'
+    format_global_fold = '%10s %2d %3s %6s %3s %3s f%d %6.0f %3.2f'
+    format_zip_fold = '%10s %2d %3s %6d %3s %3s f%d %6.0f %3.2f'
     format_global = '%10s %2d %3s %6s %3s %3s median %6.0f %3.2f'
     format_zip = '%10s %2d %3s %6d %3s %3s median %6.0f %3.2f'
 
@@ -381,23 +369,23 @@ def report(sale_date, training_days, model_name, scope, run_result, control):
                     np.median(rel_errors))
                 print line
 
-    def print_scope_local2():
-        pdb.set_trace()
-        # find the zip code-based results
-        for fold_number in xrange(n_folds):
-            fold_run_result = run_result[(sale_date,
-                                          training_days,
-                                          model_name,
-                                          scope,
-                                          fold_number)]
-            for zip_code, zip_code_result in fold_run_result.iteritems():
-                print zip_code
-                for x_mode in ('log', 'linear'):
-                    for y_mode in ('log', 'linear'):
-                        zip_code_result_key = (
-                            'x_mode', x_mode,
-                            'y_mode', y_mode)
-                        model_run = zip_code_result[zip_code_result_key]
+#    def print_scope_local2():
+#        pdb.set_trace()
+#        # find the zip code-based results
+#        for fold_number in xrange(n_folds):
+#            fold_run_result = run_result[(sale_date,
+#                                          training_days,
+#                                          model_name,
+#                                          scope,
+#                                          fold_number)]
+#            for zip_code, zip_code_result in fold_run_result.iteritems():
+#                print zip_code
+#                for x_mode in ('log', 'linear'):
+#                    for y_mode in ('log', 'linear'):
+#                        zip_code_result_key = (
+#                            'x_mode', x_mode,
+#                            'y_mode', y_mode)
+#                        model_run = zip_code_result[zip_code_result_key]
 
     def get_all_zip_codes():
         'return zip-codes in every fold'
@@ -416,57 +404,77 @@ def report(sale_date, training_days, model_name, scope, run_result, control):
             zip_codes_in_all_folds.intersection(zip_codes)
         return zip_codes_in_all_folds
 
-    def print_scope(scope, format_fold, format):
-        for x_mode in ('log', 'linear'):
-            for y_mode in ('log', 'linear'):
-                errors = np.zeros(n_folds, dtype=np.float64)
-                rel_errors = np.zeros(n_folds, dtype=np.float64)
-                for fold_number in xrange(n_folds):
-                    pdb.set_trace()
-                    key = (sale_date,
-                           training_days,
-                           model_name,
-                           scope,
-                           fold_number)
-                    model_run = run_result[key]
-                    actuals = model_run['actuals']
-                    estimates = model_run['estimates']
-                    error = median_abs_error(actuals, estimates)
-                    rel_error = error / np.median(actuals)
-                    if print_folds:
-                        line = format_fold % (sale_date,
-                                              training_days,
-                                              model_name,
-                                              scope,
-                                              y_mode[:3],
-                                              x_mode[:3],
-                                              fold_number,
-                                              error,
-                                              rel_error)
-                        print line
-                    errors[fold_number] = error
-                    rel_errors[fold_number] = rel_error
-                line = format % (sale_date,
-                                 training_days,
-                                 model_name,
-                                 scope,
-                                 y_mode[:3],
-                                 x_mode[:3],
-                                 np.median(errors),
-                                 np.median(rel_errors))
-                print line
+    def zip_code_run_result(zip_code):
+        'retun new run_results containing just items for the zip code'
+        print zip_code
+        result = {}
+        for k, v in run_result.iteritems():
+            date_time, training_days, model_name, scope, fold_number = k
+            if scope != 'zip':
+                continue
+            for run_result_key, run_result_value in v.iteritems():
+                if run_result_key == zip_code:
+                    result.append(run_result_value)
+                pdb.set_trace()
+                pass
+        pass
 
     def print_scope_zip():
         # determine all the zip code
-        return
         all_zips = get_all_zip_codes()
         sorted_zips = sorted(all_zips)
         for zip_code in sorted_zips:
-            print_scope(zip_code, format_zip_fold, format_zip)
+            for x_mode in ('log', 'linear'):
+                for y_mode in ('log', 'linear'):
+                    errors = np.zeros(n_folds, dtype=np.float64)
+                    rel_errors = np.zeros(n_folds, dtype=np.float64)
+                    for fold_number in xrange(n_folds):
+                        pdb.set_trace()
+                        key = (sale_date,
+                               training_days,
+                               model_name,
+                               'zip',
+                               fold_number)
+                        print key
+                        model_run = run_result[key][zip_code][
+                            ('x_mode', x_mode, 'y_mode', y_mode)]
+                        actuals = model_run['actuals']
+                        estimates = model_run['estimates']
+                        error = median_abs_error(actuals, estimates)
+                        rel_error = error / np.median(actuals)
+                        if print_folds:
+                            line = format_zip_fold % (sale_date,
+                                                      training_days,
+                                                      model_name,
+                                                      zip_code,
+                                                      y_mode[:3],
+                                                      x_mode[:3],
+                                                      fold_number,
+                                                      error,
+                                                      rel_error)
+                            print line
+                        errors[fold_number] = error
+                        rel_errors[fold_number] = rel_error
+                    pdb.set_trace()
+                    line = format_zip % (sale_date,
+                                         training_days,
+                                         model_name,
+                                         zip_code,
+                                         y_mode[:3],
+                                         x_mode[:3],
+                                         np.median(errors),
+                                         np.median(rel_errors))
+                    print line
 
+    debug = True
+    if debug:
+        print 'bypassing printing of report'
+        return
     if scope == 'global':
         print_scope_global()
     elif scope == 'zip':
+        print 'bypassing print_scope_zip'
+        return
         print_scope_zip()
     else:
         print scope
@@ -488,25 +496,29 @@ print control
 
 print "reading training data"
 f = open(control.path_in, 'rb')
-loaded_df = pickle.load(f)
+df_loaded = pickle.load(f)
+print df_loaded.shape
+df_loaded_copy = df_loaded.copy(deep=True)
 f.close()
-print 'loaded_df shape', loaded_df.shape
 
 KFold = cross_validation.KFold
 run_result = {}
 
-verbose = False
+verbose = True
+debug = True
 last_train_indices = np.array([])
+pdb.set_trace()
 for sale_date in control.sale_dates:
-    df = loaded_df.copy(deep=True)  # we mutate df, so start with a fresh copy
-    for training_days in control.training_days:
-        df = within_training_days(sale_date, training_days, df.copy(deep=True))
+    for training_days in (7, 14) if debug else control.training_days:
+        df_visible = within_training_days(sale_date,
+                                          training_days,
+                                          df_loaded)
         if verbose:
-            print sale_date, training_days
-        df_aged = add_age(df, sale_date)
+            print sale_date, training_days, len(df_visible)
+        df_visible_aged = add_age(df_visible, sale_date)
         for model_name, model in control.models.iteritems():
-            for scope in control.scopes:
-                kf = KFold(n=len(df_aged),
+            for scope in ('global',) if debug else control.scopes:
+                kf = KFold(n=len(df_visible_aged),
                            n_folds=control.n_folds,
                            shuffle=True,
                            random_state=control.random_seed)
@@ -516,14 +528,23 @@ for sale_date in control.sale_dates:
                         print \
                             sale_date, training_days, model_name, scope, \
                             fold_number
+
                     # check that folds are actually formed
-                    if np.array_equal(last_train_indices, train_indices):
-                        print 'BAD train_indices'
-                        pdb.set_trace()
-                    last_train_indices = train_indices.copy()
-                    train = df_aged.iloc[train_indices].copy()
-                    test = df_aged.iloc[test_indices].copy()
-                    assert len(train) + len(test) == len(df_aged)
+                    if False:
+                        if np.array_equal(last_train_indices, train_indices):
+                            print 'BAD train_indices'
+                            pdb.set_trace()
+                            last_train_indices = train_indices.copy()
+
+                    # split samples
+                    train = df_visible_aged.iloc[train_indices].copy()
+                    test = df_visible_aged.iloc[test_indices].copy()
+                    assert len(train) + len(test) == len(df_visible_aged)
+
+                    if debug:
+                        print 'training_days', training_days
+                        if training_days > 7:
+                            pdb.set_trace()
                     model_run = model.run(
                         train=train,
                         test=test,
@@ -537,6 +558,8 @@ for sale_date in control.sale_dates:
                         fold_number)
                     run_result[key] = model_run
                     fold_number += 1
+                    if debug:
+                        break
                 report(
                     sale_date,
                     training_days,
