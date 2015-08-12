@@ -1,5 +1,8 @@
 '''Python Uniform Containers that mimic K's container types'''
 
+# TODO: write documentation for V, H, T, KT
+# goal: assure that the API is easy to describe
+
 import abc
 import collections
 import numpy as np
@@ -19,7 +22,7 @@ class V(PUC):
     def __len__(self):
         return self.nparray.size
 
-    def as_numpy_array(self):
+    def to_numpy_array(self):
         return self.nparray
 
     def _items(self):
@@ -213,7 +216,7 @@ class Vint64(V):
         raise TypeError('type(other) = ' + str(type(other)))
 
 
-class Vbool(V):
+class Vbool(V):  # TODO: Rename Vint8 (if its signed)
     'boolean vector'
 
     def __init__(self, obj):
@@ -327,7 +330,8 @@ class Vobj(V):
             raise TypeError('other is type %s' % type(other))
         raise TypeError('other is type %s' % type(other))
 
-class D(PUC):
+
+class D(PUC):  # TODO: rename to H for hash; want name not in base Python
     'dictionary with [] extended to allow for a sequence'
 
     def __init__(self, key_list, value_list):
