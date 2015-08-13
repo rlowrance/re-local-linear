@@ -18,6 +18,9 @@ class Logger(object):
         self.terminal.write(message)
         self.log.write(message)
 
+    def flush():
+        pass
+
 if False:
     # usage example
     sys.stdout = Logger('path/to/log/file')
