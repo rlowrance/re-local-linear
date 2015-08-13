@@ -40,154 +40,6 @@ if False:
     pd.Series()
 
 
-def x(mode, df, control):
-    '''return 2D np.array, with df x values possibly transformed to log
-
-    RETURNS
-    array: np.array 2D
-    names: list of column names for array
-    '''
-    def transform(v, mode, transformation):
-        if mode == 'linear':
-            return v
-        if mode == 'log':
-            if transformation is None:
-                return v
-            if transformation == 'log':
-                return np.log(v)
-            if transformation == 'log1p':
-                return np.log1p(v)
-            raise RuntimeError('bad transformation: ' + str(transformation))
-        raise RuntimeError('bad mode:' + str(mode))
-
-    array = np.empty(shape=(df.shape[0], len(control.predictors)),
-                     dtype=np.float64).T
-    # build up in transposed form
-    index = 0
-    for predictor_name, transformation in control.predictors.iteritems():
-        v = transform(df[predictor_name].values, mode, transformation)
-        array[index] = v
-        index += 1
-    return array.T, control.predictors.keys()
-
-
-def y(mode, df, control):
-    '''return np.array 1D with transformed price column from df'''
-    df2 = df.copy(deep=True)
-    if mode == 'log':
-        df2[control.price_column] = \
-            pd.Series(np.log(df[control.price_column]),
-                      index=df.index)
-    array = np.array(df2[control.price_column].as_matrix(), np.float64)
-    return array
-
-
-def demode(v, mode):
-    'convert log domain to normal'
-    if v is None:
-        return None
-    result = np.exp(v) if mode == 'log' else v
-    return result
-
-
-class Ols(object):
-    'Ordinary least squares via sklearn'
-    def __init__(self):
-        self.Model_Constructor = linear_model.LinearRegression
-
-    def fit_and_predict(self, train_x, train_y, test_x):
-        'return predictions and fitted model'
-        if train_x.size == 0:
-            return None, None
-        model = self.Model_Constructor(
-            fit_intercept=True,
-            normalize=True,
-            copy_X=True)
-        model.fit(train_x, train_y)
-        # if the model cannot be fit, LinearRegression returns the mean
-        # of the train_y values
-        predictions = model.predict(test_x)
-        return predictions, model
-
-    def run_global(self, train, test, control):
-        '''fit and test one model for all the samples
-
-        RETURN
-        dict with key = (x_mode, y_mode)
-        '''
-        # implement variants
-        verbose = False
-        debug = True
-        all_variants = {}
-        for x_mode in ('linear',) if debug else ('log', 'linear'):
-            for y_mode in ('log',) if debug else ('log', 'linear'):
-                train_x, x_names = x(x_mode, train, control)
-                test_x, _ = x(x_mode, test, control)
-                train_y = y(y_mode, train, control)
-                estimates, fitted_model = self.fit_and_predict(
-                    train_x=train_x,
-                    train_y=train_y,
-                    test_x=test_x)
-                if debug:
-                    print 'train_x.shape', train_x.shape
-                    if fitted_model is not None:
-                        print 'coef_', fitted_model.coef_
-                        print 'estimates', estimates
-                key = ('x_mode', x_mode, 'y_mode', y_mode)
-                value = {
-                    'model': fitted_model,  # contains coefficient and intercept
-                    'x_names': x_names,
-                    'estimates': demode(estimates, y_mode),
-                    'actuals': y('linear', test, control)
-                }
-                # check results
-                if verbose:
-                    print 'x_mode, y_mode: ', x_mode, y_mode
-                    print 'actuals: ', value['actuals']
-                    print 'estimates: ', value['estimates']
-                all_variants[key] = value
-        return all_variants
-
-    def run_zip(self, train, test, control):
-        'fit and test a model for each zip5 in the test samples'
-        verbose = False
-        zip_results = {}
-        zip_uniques = test.zip5.unique()
-        for i in xrange(len(zip_uniques)):
-            # zip5 is a scalar numpy value
-            zip5 = zip_uniques[i]
-            if verbose:
-                print zip5, type(zip5)
-            global_result = self.run_global(
-                train.loc[train.zip5 == zip5].copy(deep=True),
-                test.loc[test.zip5 == zip5].copy(deep=True),
-                control)
-            zip_results[zip5] = global_result
-            if verbose:
-                print 'zip5: ', zip5
-                for key, value in global_result.iteritems():
-                    print key
-                    print 'estimates: ', value['estimates']
-                    print 'actuals: ', value['actuals']
-        return zip_results
-
-    def run(self, train, test, scope, control):
-        'return dict of variants of fited model and predict'
-        if scope == 'global':
-            return self.run_global(
-                train.copy(deep=True),
-                test.copy(deep=True),
-                control)
-        elif scope == 'zip':
-            return self.run_zip(
-                train.copy(deep=True),
-                test.copy(deep=True),
-                control)
-        else:
-            print 'bad scope: ' + scope
-            raise RuntimeError()
-
-
 def usage():
     print 'usage: python ege-date.py yyyy-mm-dd'
     sys.exit(1)
@@ -260,8 +112,127 @@ def make_control(argv):
     return b
 
 
-def within_training_days(sale_date, training_days, df):
-    'Return df containing only samples within training_days days of sale_date'
+def x(mode, df, control):
+    '''return 2D np.array, with df x values possibly transformed to log
+
+    RETURNS
+    array: np.array 2D
+    names: list of column names for array
+    '''
+    def transform(v, mode, transformation):
+        if mode == 'linear':
+            return v
+        if mode == 'log':
+            if transformation is None:
+                return v
+            if transformation == 'log':
+                return np.log(v)
+            if transformation == 'log1p':
+                return np.log1p(v)
+            raise RuntimeError('bad transformation: ' + str(transformation))
+        raise RuntimeError('bad mode:' + str(mode))
+
+    array = np.empty(shape=(df.shape[0], len(control.predictors)),
+                     dtype=np.float64).T
+    # build up in transposed form
+    index = 0
+    for predictor_name, transformation in control.predictors.iteritems():
+        v = transform(df[predictor_name].values, mode, transformation)
+        array[index] = v
+        index += 1
+    return array.T, control.predictors.keys()
+
+
+def y(mode, df, control):
+    '''return np.array 1D with transformed price column from df'''
+    df2 = df.copy(deep=True)
+    if mode == 'log':
+        df2[control.price_column] = \
+            pd.Series(np.log(df[control.price_column]),
+                      index=df.index)
+    array = np.array(df2[control.price_column].as_matrix(), np.float64)
+    return array
+
+
+def demode(v, mode):
+    'convert log domain to normal'
+    if v is None:
+        return None
+    result = np.exp(v) if mode == 'log' else v
+    return result
+
+
+class Ols(object):
+    'Ordinary least squares via sklearn'
+    def __init__(self):
+        self.Model_Constructor = linear_model.LinearRegression
+
+    def fit_and_predictOLD(self, train_x, train_y, test_x):
+        'return predictions and fitted model'
+        if train_x.size == 0:
+            return None, None
+        model = self.Model_Constructor(
+            fit_intercept=True,
+            normalize=True,
+            copy_X=True)
+        model.fit(train_x, train_y)
+        # if the model cannot be fit, LinearRegression returns the mean
+        # of the train_y values
+        predictions = model.predict(test_x)
+        return predictions, model
+
+    def run(self, train, test, control):
+        '''fit on training data and test
+
+        ARGS
+        train  : dataframe
+        test   : dataframe
+        control: Bunch
+
+        RETURN
+        dict with key = (x_mode, y_mode) values = (actuals, estimates, fitted)
+        '''
+        # implement variants
+        verbose = True
+        debug = True
+        if debug:
+            print 'OLS.run debug'
+        all_variants = {}
+        for x_mode in ('linear',) if debug else ('log', 'linear'):
+            for y_mode in ('log',) if debug else ('log', 'linear'):
+                train_x, x_names = x(x_mode, train, control)
+                test_x, _ = x(x_mode, test, control)
+                train_y = y(y_mode, train, control)
+                model = self.Model_Constructor(fit_intercept=True,
+                                               normalize=True,
+                                               copy_X=True)
+                fitted_model = model.fit(train_x, train_y)
+                # if the model cannot be fitted, LinearRegressor returns
+                # the mean of the train_y values
+                estimates = fitted_model.predict(test_x)
+                if debug:
+                    print 'train_x.shape', train_x.shape
+                    if fitted_model is not None:
+                        print 'coef_', fitted_model.coef_
+                        print 'estimates', estimates
+                key = ('y_mode', y_mode, 'x_mode', x_mode)
+                value = {
+                    'model': fitted_model,  # contains coefficient and intercept
+                    'x_names': x_names,
+                    'estimates': demode(estimates, y_mode),
+                    'actuals': y('linear', test, control)
+                }
+                # check results
+                if verbose:
+                    print 'x_mode, y_mode: ', x_mode, y_mode
+                    print 'actuals: ', value['actuals']
+                    print 'estimates: ', value['estimates']
+                all_variants[key] = value
+        return all_variants
+
+
+def within(sale_date, training_days, df):
+    'return indices of samples up to training_days before the sale_date'
     assert(training_days > 0)
     # one training day means use samples on the sale date only
     first_ok_sale_date = sale_date - datetime.timedelta(training_days - 1)
@@ -269,8 +240,14 @@ def within_training_days(sale_date, training_days, df):
     after = df[date_column] >= first_ok_sale_date
     before = df[date_column] <= sale_date
     ok_indices = np.logical_and(after, before)
-    ok_df = df.loc[ok_indices]  # mask selection
-    return ok_df
+    return ok_indices
+
+
+def on_sale_date(sale_date, df):
+    '''return indices of sample on the sale date'''
+    date_column = 'sale.python_date'
+    result = df[date_column] == sale_date
+    return result
 
 
 def add_age(df, sale_date):
@@ -301,6 +278,28 @@ def add_age(df, sale_date):
     result['effective.age2'] = result['effective.age'] * result['effective.age']
 
     return result
+
+
+def unique_zip_codes(df):
+    'yield each unique zip code in the dataframe'
+    unique_zip_codes = df['zip5'].unique()
+    for i in xrange(len(unique_zip_codes)):
+        yield unique_zip_codes[i]
+
+
+def zip_codes(df, a_zip_code):
+    'return new dataframe containing just the specified zip code'
+    df_copy = df.copy(deep=True)
+    result = df_copy[df_copy['zip5'] == a_zip_code]
+    return result
+
+
+def report_global(key, result):
+    print 'report global', key, result
+
+
+def report_zip_code(key, result):
+    print 'report zip code', key, result
 
 
 def report(sale_date, training_days, model_name, scope, run_result, control):
@@ -481,6 +480,20 @@ def report(sale_date, training_days, model_name, scope, run_result, control):
         raise RuntimeError('bad scope: ' + str(scope))
 
 
+def make_train_model(df, sale_date, training_days):
+    'return df of transactions no more than training_days before the sale_date'
+    just_before_sale_date = within(sale_date, training_days, df)
+    train_model = add_age(train[just_before_sale_date], sale_date)
+    return train_model
+
+
+def make_test_model(df, sale_date):
+    'return df of transactions on the sale_date'
+    selected_indices = on_sale_date(sale_date, test)
+    test_model = add_age(test[selected_indices], sale_date)
+    return test_model
+
+
 # MAIN PROGRAM
 # convert warnings into errors
 warnings.filterwarnings('error')
@@ -507,67 +520,58 @@ run_result = {}
 verbose = True
 debug = True
 last_train_indices = np.array([])
+
+# make sure each sale_date sees the same fold data
+kf = KFold(n=(len(df_loaded)),
+           n_folds=control.n_folds,
+           shuffle=True,
+           random_state=control.random_seed)
+all_results = {}
+fold_number = -1
 pdb.set_trace()
-for sale_date in control.sale_dates:
-    for training_days in (7, 14) if debug else control.training_days:
-        df_visible = within_training_days(sale_date,
-                                          training_days,
-                                          df_loaded)
-        if verbose:
-            print sale_date, training_days, len(df_visible)
-        df_visible_aged = add_age(df_visible, sale_date)
-        for model_name, model in control.models.iteritems():
-            for scope in ('global',) if debug else control.scopes:
-                kf = KFold(n=len(df_visible_aged),
-                           n_folds=control.n_folds,
-                           shuffle=True,
-                           random_state=control.random_seed)
-                fold_number = 0
-                for train_indices, test_indices in kf:
-                    if verbose:
-                        print \
-                            sale_date, training_days, model_name, scope, \
-                            fold_number
+for train_indices, test_indices in kf:
+    fold_number += 1
 
-                    # check that folds are actually formed
-                    if False:
-                        if np.array_equal(last_train_indices, train_indices):
-                            print 'BAD train_indices'
-                            pdb.set_trace()
-                            last_train_indices = train_indices.copy()
+    # don't create views (just to be careful)
+    train = df_loaded.iloc[train_indices].copy(deep=True)
+    test = df_loaded.iloc[test_indices].copy(deep=True)
+    assert(df_loaded.equals(df_loaded_copy))
 
-                    # split samples
-                    train = df_visible_aged.iloc[train_indices].copy()
-                    test = df_visible_aged.iloc[test_indices].copy()
-                    assert len(train) + len(test) == len(df_visible_aged)
+    for sale_date in control.sale_dates:
+        for training_days in (7, 14) if debug else control.training_days:
+            train_model = make_train_model(train, sale_date, training_days)
+            test_model = make_test_model(test, sale_date)
+            for model_name, model in control.models.iteritems():
 
-                    if debug:
-                        print 'training_days', training_days
-                        if training_days > 7:
-                            pdb.set_trace()
-                    model_run = model.run(
-                        train=train,
-                        test=test,
-                        scope=scope,
-                        control=control)
-                    key = (
-                        sale_date,
-                        training_days,
-                        model_name,
-                        scope,
-                        fold_number)
-                    run_result[key] = model_run
-                    fold_number += 1
-                    if debug:
-                        break
-                report(
-                    sale_date,
-                    training_days,
-                    model_name,
-                    scope,
-                    run_result,
-                    control)
-                print
+                def make_key(last_item):
+                    return (fold_number, sale_date, training_days,
+                            model_name, last_item)
+
+                # determine results for all areas (i.e., global)
+                global_result = model.run(train=train_model,
+                                          test=test_model,
+                                          control=control)
+                key = make_key('global')
+                all_results[key] = global_result
+                report_global(key, global_result)
+
+                # determine results for each zip code in test data
+                for zip_code in unique_zip_codes(test_model):
+                    print 'zip_code', zip_code
+                    train_model_zip = zip_codes(train_model, zip_code)
+                    test_model_zip = zip_codes(test_model, zip_code)
+                    # Note: there can be no training data
+                    if len(train_model_zip) > 0:
+                        # there is  training date for the zip code
+                        zip_code_result = model.run(train=train_model_zip,
+                                                    test=test_model_zip,
+                                                    control=control)
+                        key = make_key(('zip', zip_code))
+                        all_results[key] = zip_code_result
+                        report_zip_code(key, zip_code_result)
+print 'finished loop over folds'
+pdb.set_trace()
+
 result = {'control': control,
           'run_result': run_result}
 # TODO: write result into file system
