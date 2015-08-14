@@ -32,12 +32,15 @@ from Logger import Logger
 # import ModelsOls
 
 
-if False:
-    # quiet warnings from pyflakes
+def quiet_pyflakes():
+    'quiet warnings from pyflakes'
+    return
     pdb.set_trace()
     pprint(None)
     np.all()
     pd.Series()
+
+quiet_pyflakes()
 
 
 def usage():
@@ -104,7 +107,7 @@ def make_control(argv):
         sale_dates=[sale_date],
         models={'ols': Ols()},
         scopes=['global', 'zip'],
-        training_days=range(7, 14 if debug else 366, 7),
+        training_days=(365,) if debug else range(7, 14, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -162,24 +165,170 @@ def demode(v, mode):
     return result
 
 
+def errors(model_result):
+    'return median_absolute_error and median_relative_absolute_error'
+    actuals = model_result['actuals']
+    estimates = model_result['estimates']
+    abs_error = np.abs(actuals - estimates)
+    median_abs_error = np.median(abs_error)
+    rel_abs_error = abs_error / actuals
+    median_rel_abs_error = np.median(rel_abs_error)
+    return median_abs_error, median_rel_abs_error
+
+
+class ReportOls(object):
+    'report generation with y_mode and x_mode in key'
+    # NOTE: perhaps reusable for any model with y and x modes
+
+    def __init__(self):
+        self.format_global_fold = '%10s %2d %3s %6s %3s %3s f%d %6.0f %3.2f'
+        self.format_zip_fold = '%10s %2d %3s %6d %3s %3s f%d %6.0f %3.2f'
+        self.format_global = '%10s %2d %3s %6s %3s %3s median %6.0f %3.2f'
+        self.format_zip = '%10s %2d %3s %6d %3s %3s median %6.0f %3.2f'
+
+    def global_fold_line(self, key, result):
+        fold_number, sale_date, training_days, model_name, scope = key
+        assert(scope == 'global')
+        for result_key, result_value in result.iteritems():
+            y_mode = result_key[1][:3]
+            x_mode = result_key[3][:3]
+            median_abs_error, median_rel_abs_error = errors(result_value)
+            line = self.format_global_fold % (sale_date,
+                                              training_days,
+                                              model_name,
+                                              scope,
+                                              y_mode,
+                                              x_mode,
+                                              fold_number,
+                                              median_abs_error,
+                                              median_rel_abs_error)
+            return line
+
+    def zip_fold_line(self, key, result):
+        fold_number, sale_date, training_days, model_name, scope = key
+        assert(isinstance(scope, tuple))
+        for result_key, result_value in result.iteritems():
+            y_mode = result_key[1][:3]
+            x_mode = result_key[3][:3]
+            median_abs_error, median_rel_abs_error = errors(result_value)
+            line = self.format_zip_fold % (sale_date,
+                                           training_days,
+                                           model_name,
+                                           zip_code,
+                                           y_mode,
+                                           x_mode,
+                                           fold_number,
+                                           median_abs_error,
+                                           median_rel_abs_error)
+            return line
+
+    def summarize_global(self,
+                         sale_date,
+                         training_days,
+                         model_name,
+                         all_results,
+                         control):
+        scope = 'global'
+        for y_mode in ('log', 'linear'):
+            y_mode_print = y_mode[:3]
+            for x_mode in ('log', 'linear'):
+                x_mode_print = x_mode[:3]
+                median_errors = np.zeros(control.n_folds, dtype=np.float64)
+                median_rel_errors = np.zeros(control.n_folds, dtype=np.float64)
+                for fold_number in xrange(control.n_folds):
+                    # determine errors in the fold
+                    key = (fold_number, sale_date, training_days, model_name, scope)
+                    result = all_results[key]
+                    model_result = result[('y_mode', y_mode, 'x_mode', x_mode)]
+                    median_abs_error, median_rel_abs_error = errors(model_result)
+                    fold_line = self.format_global_fold % (sale_date,
+                                                           training_days,
+                                                           model_name,
+                                                           scope,
+                                                           y_mode_print,
+                                                           x_mode_print,
+                                                           fold_number,
+                                                           median_abs_error,
+                                                           median_rel_abs_error)
+                    print fold_line
+                    median_errors[fold_number] = median_abs_error
+                    median_rel_errors[fold_number] = median_rel_abs_error
+                all_folds_line = self.format_global % (sale_date,
+                                                       training_days,
+                                                       model_name,
+                                                       scope,
+                                                       y_mode_print,
+                                                       x_mode_print,
+                                                       np.median(median_errors),
+                                                       np.median(median_rel_errors))
+                print all_folds_line
+
+    def summarize_zip(self, sale_date, training_days, model_name,
+                      all_results, control):
+        pdb.set_trace()
+
+        # determine zip codes in all folds for the line
+
+        folds_for_zip_code = collections.defaultdict(set)
+        for k, _ in all_results.iteritems():
+            k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
+            if k_sale_date == sale_date and k_training_days == training_days and k_model_name == model_name:
+                if isinstance(k_scope, tuple):
+                    folds_for_zip_code[k_scope[1]].add(k_fold_number)
+        pprint(folds_for_zip_code)
+        pdb.set_trace()
+
+        # print a line for each zip code that is in all 10 folds
+        for zip_code, v in folds_for_zip_code.iteritems():
+            print zip_code, v
+            if len(v) != 10:
+                print 'skipping %d; was in just %d folds' % (zip_code, len(v))
+                continue
+            pdb.set_trace()
+            for y_mode in ('log', 'linear'):
+                y_mode_print = y_mode[:3]
+                for x_mode in ('log', 'linear'):
+                    x_mode_print = x_mode[:3]
+                    median_errors = np.zeros(control.n_folds, dtype=np.float64)
+                    median_rel_errors = median_errors.copy()
+                    for fold_number in xrange(control.n_folds):
+                        key = (fold_number, sale_date, training_days,
+                               model_name, ('zip', zip_code))
+                        result = all_results[key]
+                        model_result = result[('y_mode', y_mode,
+                                               'x_mode', x_mode)]
+                        median_abs_error, median_rel_abs_error = \
+                            errors(model_result)
+                        fold_line = self.format_zip_fold % (
+                            sale_date, training_days, model_name, zip_code,
+                            y_mode_print, x_mode_print,
+                            median_abs_error, median_rel_abs_error)
+                        print fold_line
+                        median_errors[fold_number] = median_abs_error
+                        median_rel_errors[fold_number] = median_rel_abs_error
+                    all_folds_line = \
+                        self.format_zip % (
+                            sale_date, training_days, model_name, zip_code,
+                            y_mode_print, x_mode_print,
+                            np.median(median_errors),
+                            np.median(median_rel_errors))
+                    print all_folds_line
+
+    def summarize(self, sale_date, training_days, model_name,
+                  all_results, control):
+        self.summarize_global(sale_date, training_days, model_name,
+                              all_results, control)
+        self.summarize_zip(sale_date, training_days, model_name,
+                           all_results, control)
+
+
 class Ols(object):
     'Ordinary least squares via sklearn'
     def __init__(self):
         self.Model_Constructor = linear_model.LinearRegression
 
-    def fit_and_predictOLD(self, train_x, train_y, test_x):
-        'return predictions and fitted model'
-        if train_x.size == 0:
-            return None, None
-        model = self.Model_Constructor(
-            fit_intercept=True,
-            normalize=True,
-            copy_X=True)
-        model.fit(train_x, train_y)
-        # if the model cannot be fit, LinearRegression returns the mean
-        # of the train_y values
-        predictions = model.predict(test_x)
-        return predictions, model
+    def reporter(self):
+        return ReportOls
 
     def run(self, train, test, control):
         '''fit on training data and test
@@ -198,8 +347,8 @@ class Ols(object):
         if debug:
             print 'OLS.run debug'
         all_variants = {}
-        for x_mode in ('linear',) if debug else ('log', 'linear'):
-            for y_mode in ('log',) if debug else ('log', 'linear'):
+        for x_mode in ('log', 'linear'):
+            for y_mode in ('log', 'linear'):
                 train_x, x_names = x(x_mode, train, control)
                 test_x, _ = x(x_mode, test, control)
                 train_y = y(y_mode, train, control)
@@ -294,15 +443,7 @@ def zip_codes(df, a_zip_code):
     return result
 
 
-def report_global(key, result):
-    print 'report global', key, result
-
-
-def report_zip_code(key, result):
-    print 'report zip code', key, result
-
-
-def report(sale_date, training_days, model_name, scope, run_result, control):
+def reportOLD(sale_date, training_days, model_name, scope, run_result, control):
     'print report for given selectors'
 
     print_folds = True
@@ -367,24 +508,6 @@ def report(sale_date, training_days, model_name, scope, run_result, control):
                     np.median(errors),
                     np.median(rel_errors))
                 print line
-
-#    def print_scope_local2():
-#        pdb.set_trace()
-#        # find the zip code-based results
-#        for fold_number in xrange(n_folds):
-#            fold_run_result = run_result[(sale_date,
-#                                          training_days,
-#                                          model_name,
-#                                          scope,
-#                                          fold_number)]
-#            for zip_code, zip_code_result in fold_run_result.iteritems():
-#                print zip_code
-#                for x_mode in ('log', 'linear'):
-#                    for y_mode in ('log', 'linear'):
-#                        zip_code_result_key = (
-#                            'x_mode', x_mode,
-#                            'y_mode', y_mode)
-#                        model_run = zip_code_result[zip_code_result_key]
 
     def get_all_zip_codes():
         'return zip-codes in every fold'
@@ -494,6 +617,54 @@ def make_test_model(df, sale_date):
     return test_model
 
 
+def determine_most_popular_zip_code(df, control):
+    'return the zip_code that occurs most ofen in the dataframe'
+    zip_code_counter = collections.Counter()
+    for _, zip_code in df_loaded.zip5.iteritems():
+        zip_code_counter[zip_code] += 1
+    pdb.set_trace()
+    most_common_zip_code, count = zip_code_counter.most_common(1)[0]
+    print 'most common zip_code', most_common_zip_code, 'occurs', count
+
+    # assert: the most common zip code is in each fold
+    fold_number = -1
+    folds_for_zip_code = collections.defaultdict(set)
+    kf = cross_validation.KFold(n=(len(df)),
+                                n_folds=control.n_folds,
+                                shuffle=True,
+                                random_state=control.random_seed)
+    for train_indices, test_indices in kf:
+        fold_number += 1
+        train = df_loaded.iloc[train_indices].copy(deep=True)
+        test = df_loaded.iloc[test_indices].copy(deep=True)
+        if most_common_zip_code not in test.zip5.values:
+            print most_common_zip_code, 'not in', fold_number
+        for zip_code in unique_zip_codes(test):
+            assert(zip_code in test.zip5.values)
+            if zip_code not in train.zip5.values:
+                print 'fold %d zip_code %d in train and not test' % (
+                    fold_number,
+                    zip_code)
+            folds_for_zip_code[zip_code].add(fold_number)
+    pdb.set_trace()
+    assert(len(folds_for_zip_code[most_common_zip_code]) == 10)
+
+    # print zip_code not in each test set
+    pdb.set_trace()
+    count_in_10 = 0
+    count_not_in_10 = 0
+    for zip_code, set_folds in folds_for_zip_code.iteritems():
+        if len(set_folds) != 10:
+            print 'zip_code %d in only %d folds' % (zip_code, len(set_folds))
+            count_not_in_10 += 1
+        else:
+            count_in_10 += 1
+    print 'in 10: %d  not in 10: %d' % (count_in_10, count_not_in_10)
+
+    pdb.set_trace()
+    return most_common_zip_code
+
+
 # MAIN PROGRAM
 # convert warnings into errors
 warnings.filterwarnings('error')
@@ -514,21 +685,21 @@ print df_loaded.shape
 df_loaded_copy = df_loaded.copy(deep=True)
 f.close()
 
-KFold = cross_validation.KFold
-run_result = {}
-
 verbose = True
 debug = True
-last_train_indices = np.array([])
 
-# make sure each sale_date sees the same fold data
-kf = KFold(n=(len(df_loaded)),
-           n_folds=control.n_folds,
-           shuffle=True,
-           random_state=control.random_seed)
+most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(),
+                                                        control)
+
+# determine most popular zip code
+pdb.set_trace()
+
 all_results = {}
 fold_number = -1
-pdb.set_trace()
+kf = cross_validation.KFold(n=(len(df_loaded)),
+                            n_folds=control.n_folds,
+                            shuffle=True,
+                            random_state=control.random_seed)
 for train_indices, test_indices in kf:
     fold_number += 1
 
@@ -536,16 +707,17 @@ for train_indices, test_indices in kf:
     train = df_loaded.iloc[train_indices].copy(deep=True)
     test = df_loaded.iloc[test_indices].copy(deep=True)
     assert(df_loaded.equals(df_loaded_copy))
+    assert(most_popular_zip_code in test.zip5.values)
 
     for sale_date in control.sale_dates:
-        for training_days in (7, 14) if debug else control.training_days:
+        for training_days in control.training_days:
             train_model = make_train_model(train, sale_date, training_days)
             test_model = make_test_model(test, sale_date)
+            assert(most_popular_zip_code in test_model.zip5.values)
             for model_name, model in control.models.iteritems():
 
-                def make_key(last_item):
-                    return (fold_number, sale_date, training_days,
-                            model_name, last_item)
+                def make_key(scope):
+                    return (fold_number, sale_date, training_days, model_name, scope)
 
                 # determine results for all areas (i.e., global)
                 global_result = model.run(train=train_model,
@@ -553,7 +725,8 @@ for train_indices, test_indices in kf:
                                           control=control)
                 key = make_key('global')
                 all_results[key] = global_result
-                report_global(key, global_result)
+                report = model.reporter()()  # instantiate report class
+                print report.global_fold_line(key, global_result)
 
                 # determine results for each zip code in test data
                 for zip_code in unique_zip_codes(test_model):
@@ -568,10 +741,20 @@ for train_indices, test_indices in kf:
                                                     control=control)
                         key = make_key(('zip', zip_code))
                         all_results[key] = zip_code_result
-                        report_zip_code(key, zip_code_result)
+                        print report.zip_fold_line(key, zip_code_result)
 print 'finished loop over folds'
+pdb.set_trace()
+for sale_date in control.sale_dates:
+    for training_days in control.training_days:
+        for model_name, model in control.models.iteritems():
+            report = model.reporter()()
+            report.summarize(sale_date,
+                             training_days,
+                             model_name,
+                             all_results,
+                             control)
 pdb.set_trace()
 
 result = {'control': control,
-          'run_result': run_result}
+          'all_results': all_results}
 # TODO: write result into file system
