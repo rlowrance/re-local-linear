@@ -622,7 +622,6 @@ def determine_most_popular_zip_code(df, control):
     zip_code_counter = collections.Counter()
     for _, zip_code in df_loaded.zip5.iteritems():
         zip_code_counter[zip_code] += 1
-    pdb.set_trace()
     most_common_zip_code, count = zip_code_counter.most_common(1)[0]
     print 'most common zip_code', most_common_zip_code, 'occurs', count
 
@@ -642,15 +641,13 @@ def determine_most_popular_zip_code(df, control):
         for zip_code in unique_zip_codes(test):
             assert(zip_code in test.zip5.values)
             if zip_code not in train.zip5.values:
-                print 'fold %d zip_code %d in train and not test' % (
+                print 'fold %d zip_code %d in test and not train' % (
                     fold_number,
                     zip_code)
             folds_for_zip_code[zip_code].add(fold_number)
-    pdb.set_trace()
     assert(len(folds_for_zip_code[most_common_zip_code]) == 10)
 
     # print zip_code not in each test set
-    pdb.set_trace()
     count_in_10 = 0
     count_not_in_10 = 0
     for zip_code, set_folds in folds_for_zip_code.iteritems():
@@ -659,6 +656,7 @@ def determine_most_popular_zip_code(df, control):
             count_not_in_10 += 1
         else:
             count_in_10 += 1
+    print 'all other zip codes are in 10 folds'
     print 'in 10: %d  not in 10: %d' % (count_in_10, count_not_in_10)
 
     pdb.set_trace()
