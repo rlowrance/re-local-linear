@@ -28,20 +28,6 @@ from Bunch import Bunch
 from directory import directory
 from Logger import Logger
 
-# import FoldResult
-# import ModelsOls
-
-
-def quiet_pyflakes():
-    'quiet warnings from pyflakes'
-    return
-    pdb.set_trace()
-    pprint(None)
-    np.all()
-    pd.Series()
-
-quiet_pyflakes()
-
 
 def usage():
     print 'usage: python ege-date.py yyyy-mm-dd'
@@ -102,6 +88,7 @@ def make_control(argv):
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
+        path_out=directory('working') + base_name + '%s' % sale_date + '.pickle',
         arg_date=sale_date,
         random_seed=random_seed,
         sale_dates=[sale_date],
@@ -207,10 +194,12 @@ class ReportOls(object):
     def zip_fold_line(self, key, result):
         fold_number, sale_date, training_days, model_name, scope = key
         assert(isinstance(scope, tuple))
+        zip_code = scope[1]
         for result_key, result_value in result.iteritems():
             y_mode = result_key[1][:3]
             x_mode = result_key[3][:3]
             median_abs_error, median_rel_abs_error = errors(result_value)
+
             line = self.format_zip_fold % (sale_date,
                                            training_days,
                                            model_name,
@@ -315,12 +304,12 @@ class ReportOls(object):
                 zip_codes[key_zip_code].add(key)
 
         # process each zip code
-        pdb.set_trace()
         for zip_code, keys in zip_codes.iteritems():
             report_zip_code(zip_code, keys)
 
     def summarize(self, sale_date, training_days, model_name,
                   all_results, control):
+        pdb.set_trace()
         self.summarize_global(sale_date, training_days, model_name,
                               all_results, control)
         self.summarize_zip(sale_date, training_days, model_name,
@@ -611,21 +600,21 @@ def reportOLD(sale_date, training_days, model_name, scope, run_result, control):
 def make_train_model(df, sale_date, training_days):
     'return df of transactions no more than training_days before the sale_date'
     just_before_sale_date = within(sale_date, training_days, df)
-    train_model = add_age(train[just_before_sale_date], sale_date)
+    train_model = add_age(df[just_before_sale_date], sale_date)
     return train_model
 
 
 def make_test_model(df, sale_date):
     'return df of transactions on the sale_date'
-    selected_indices = on_sale_date(sale_date, test)
-    test_model = add_age(test[selected_indices], sale_date)
+    selected_indices = on_sale_date(sale_date, df)
+    test_model = add_age(df[selected_indices], sale_date)
     return test_model
 
 
 def determine_most_popular_zip_code(df, control):
     'return the zip_code that occurs most ofen in the dataframe'
     zip_code_counter = collections.Counter()
-    for _, zip_code in df_loaded.zip5.iteritems():
+    for _, zip_code in df.zip5.iteritems():
         zip_code_counter[zip_code] += 1
     most_common_zip_code, count = zip_code_counter.most_common(1)[0]
     print 'most common zip_code', most_common_zip_code, 'occurs', count
@@ -639,8 +628,8 @@ def determine_most_popular_zip_code(df, control):
                                 random_state=control.random_seed)
     for train_indices, test_indices in kf:
         fold_number += 1
-        train = df_loaded.iloc[train_indices].copy(deep=True)
-        test = df_loaded.iloc[test_indices].copy(deep=True)
+        train = df.iloc[train_indices].copy(deep=True)
+        test = df.iloc[test_indices].copy(deep=True)
         if most_common_zip_code not in test.zip5.values:
             print most_common_zip_code, 'not in', fold_number
         for zip_code in unique_zip_codes(test):
@@ -668,96 +657,109 @@ def determine_most_popular_zip_code(df, control):
     return most_common_zip_code
 
 
-# MAIN PROGRAM
-# convert warnings into errors
-warnings.filterwarnings('error')
+def read_training_data(control):
+    'return dataframe'
 
-# read command line and set control variables
 
-control = make_control(sys.argv)
+def fit_and_test_models(df, control):
+    'Return all_results dict with results for each fold, sale date, training period model, scope'
+    pdb.set_trace()
+    all_results = {}
+    fold_number = -1
+    kf = cross_validation.KFold(n=(len(df)),
+                                n_folds=control.n_folds,
+                                shuffle=True,
+                                random_state=control.random_seed)
+    for train_indices, test_indices in kf:
+        fold_number += 1
+        # don't create views (just to be careful)
+        train = df.iloc[train_indices].copy(deep=True)
+        test = df.iloc[test_indices].copy(deep=True)
+        for sale_date in control.sale_dates:
+            for training_days in control.training_days:
+                train_model = make_train_model(train, sale_date, training_days)
+                test_model = make_test_model(test, sale_date)
+                for model_name, model in control.models.iteritems():
 
-sys.stdout = Logger(logfile_path=control.path_log)
-print control
+                    def make_key(scope):
+                        return (fold_number, sale_date, training_days, model_name, scope)
 
-# read training data
+                    # determine global results (for all areas)
+                    global_result = model.run(train=train_model,
+                                              test=test_model,
+                                              control=control)
+                    key = make_key(scope='global')
+                    all_results[key] = global_result
+                    report = model.reporter()()  # instantiate report class
+                    print report.global_fold_line(key, global_result)
 
-print "reading training data"
-f = open(control.path_in, 'rb')
-df_loaded = pickle.load(f)
-print df_loaded.shape
-df_loaded_copy = df_loaded.copy(deep=True)
-f.close()
-
-verbose = True
-debug = True
-
-if False:
-    most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(),
-                                                            control)
-
-all_results = {}
-fold_number = -1
-kf = cross_validation.KFold(n=(len(df_loaded)),
-                            n_folds=control.n_folds,
-                            shuffle=True,
-                            random_state=control.random_seed)
-for train_indices, test_indices in kf:
-    fold_number += 1
-
-    # don't create views (just to be careful)
-    train = df_loaded.iloc[train_indices].copy(deep=True)
-    test = df_loaded.iloc[test_indices].copy(deep=True)
-    assert(df_loaded.equals(df_loaded_copy))
-
-    for sale_date in control.sale_dates:
-        for training_days in control.training_days:
-            train_model = make_train_model(train, sale_date, training_days)
-            test_model = make_test_model(test, sale_date)
-            for model_name, model in control.models.iteritems():
-
-                def make_key(scope):
-                    return (fold_number, sale_date, training_days, model_name, scope)
-
-                # determine results for all areas (i.e., global)
-                global_result = model.run(train=train_model,
-                                          test=test_model,
-                                          control=control)
-                key = make_key('global')
-                all_results[key] = global_result
-                report = model.reporter()()  # instantiate report class
-                print report.global_fold_line(key, global_result)
-
-                # determine results for each zip code in test data
-                for zip_code in unique_zip_codes(test_model):
-                    print 'zip_code', zip_code
-                    if zip_code not in train_model.zip5.values:
-                        print 'zip code %d not in training set for date %s' % (
-                            zip_code,
-                            sale_date)
-                    train_model_zip = zip_codes(train_model, zip_code)
-                    test_model_zip = zip_codes(test_model, zip_code)
-                    # Note: there can be no training data
-                    if len(train_model_zip) > 0:
-                        # there is  training date for the zip code
+                    # determine results for each zip code in test data
+                    for zip_code in unique_zip_codes(test_model):
+                        if zip_code not in train_model.zip5.values:
+                            print 'skipping test zip code %d not in training set for date %s' % (
+                                zip_code,
+                                sale_date)
+                            continue
+                        train_model_zip = zip_codes(train_model, zip_code)
+                        test_model_zip = zip_codes(test_model, zip_code)
+                        assert(len(train_model_zip) > 0)
                         zip_code_result = model.run(train=train_model_zip,
                                                     test=test_model_zip,
                                                     control=control)
-                        key = make_key(('zip', zip_code))
+                        key = make_key(scope=('zip', zip_code))
                         all_results[key] = zip_code_result
                         print report.zip_fold_line(key, zip_code_result)
-print 'finished loop over folds'
-for sale_date in control.sale_dates:
-    for training_days in control.training_days:
-        for model_name, model in control.models.iteritems():
-            report = model.reporter()()
-            report.summarize(sale_date,
-                             training_days,
-                             model_name,
-                             all_results,
-                             control)
+    return all_results
 
-print 'about to write results to file system'
-pdb.set_trace()
-result = {'control': control,
-          'all_results': all_results}
-# TODO: write result into file system
+
+def print_results(all_results, control):
+    for sale_date in control.sale_dates:
+        for training_days in control.training_days:
+            for model_name, model in control.models.iteritems():
+                report = model.reporter()()  # how to print is in the model result
+                report.summarize(sale_date,
+                                 training_days,
+                                 model_name,
+                                 all_results,
+                                 control)
+
+
+def main(argv):
+    warnings.filterwarnings('error')  # convert warnings to errors
+    control = make_control(argv)
+
+    sys.stdout = Logger(logfile_path=control.path_log)  # print also write to log file
+    print control
+
+    # read input
+    f = open(control.path_in, 'rb')
+    df_loaded = pickle.load(f)
+    f.close()
+
+    df_loaded_copy = df_loaded.copy(deep=True)  # used for debugging
+    if False:
+        most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
+        print most_popular_zip_code
+
+    all_results = fit_and_test_models(df_loaded, control)
+    assert(df_loaded.equals(df_loaded_copy))
+
+    print_results(all_results, control)
+
+    # write result
+    result = {'control': control,
+              'all_results': all_results}
+    f = open(control.path_out, 'wb')
+    pickle.dump(result, f)
+
+    print 'ok'
+
+
+if __name__ == "__main__":
+    if False:
+        # quite pyflakes warnings
+        pdb.set_trace()
+        pprint(None)
+        np.all()
+        pd.Series()
+    main(sys.argv)
