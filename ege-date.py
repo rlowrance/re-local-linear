@@ -84,17 +84,17 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
-    debug = True
+    debug = False
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        path_out=directory('working') + base_name + '%s' % sale_date + '.pickle',
+        path_out=directory('working') + base_name + '-%s' % sale_date + '.pickle',
         arg_date=sale_date,
         random_seed=random_seed,
         sale_dates=[sale_date],
         models={'ols': Ols()},
         scopes=['global', 'zip'],
-        training_days=(365,) if debug else range(7, 14, 7),
+        training_days=(365,) if debug else range(7, 365, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -309,7 +309,6 @@ class ReportOls(object):
 
     def summarize(self, sale_date, training_days, model_name,
                   all_results, control):
-        pdb.set_trace()
         self.summarize_global(sale_date, training_days, model_name,
                               all_results, control)
         self.summarize_zip(sale_date, training_days, model_name,
@@ -336,10 +335,7 @@ class Ols(object):
         dict with key = (x_mode, y_mode) values = (actuals, estimates, fitted)
         '''
         # implement variants
-        verbose = True
-        debug = True
-        if debug:
-            print 'OLS.run debug'
+        verbose = False
         all_variants = {}
         for x_mode in ('log', 'linear'):
             for y_mode in ('log', 'linear'):
@@ -353,11 +349,6 @@ class Ols(object):
                 # if the model cannot be fitted, LinearRegressor returns
                 # the mean of the train_y values
                 estimates = fitted_model.predict(test_x)
-                if debug:
-                    print 'train_x.shape', train_x.shape
-                    if fitted_model is not None:
-                        print 'coef_', fitted_model.coef_
-                        print 'estimates', estimates
                 key = ('y_mode', y_mode, 'x_mode', x_mode)
                 value = {
                     'model': fitted_model,  # contains coefficient and intercept
@@ -582,10 +573,6 @@ def reportOLD(sale_date, training_days, model_name, scope, run_result, control):
                                          np.median(rel_errors))
                     print line
 
-    debug = True
-    if debug:
-        print 'bypassing printing of report'
-        return
     if scope == 'global':
         print_scope_global()
     elif scope == 'zip':
@@ -664,6 +651,7 @@ def read_training_data(control):
 def fit_and_test_models(df, control):
     'Return all_results dict with results for each fold, sale date, training period model, scope'
     pdb.set_trace()
+    verbose = False
     all_results = {}
     fold_number = -1
     kf = cross_validation.KFold(n=(len(df)),
@@ -680,6 +668,7 @@ def fit_and_test_models(df, control):
                 train_model = make_train_model(train, sale_date, training_days)
                 test_model = make_test_model(test, sale_date)
                 for model_name, model in control.models.iteritems():
+                    print fold_number, sale_date, training_days, model_name
 
                     def make_key(scope):
                         return (fold_number, sale_date, training_days, model_name, scope)
@@ -691,14 +680,16 @@ def fit_and_test_models(df, control):
                     key = make_key(scope='global')
                     all_results[key] = global_result
                     report = model.reporter()()  # instantiate report class
-                    print report.global_fold_line(key, global_result)
+                    if verbose:
+                        print report.global_fold_line(key, global_result)
 
                     # determine results for each zip code in test data
                     for zip_code in unique_zip_codes(test_model):
                         if zip_code not in train_model.zip5.values:
-                            print 'skipping test zip code %d not in training set for date %s' % (
-                                zip_code,
-                                sale_date)
+                            if False:
+                                print 'skipping test zip code %d not in training set for date %s' % (
+                                    zip_code,
+                                    sale_date)
                             continue
                         train_model_zip = zip_codes(train_model, zip_code)
                         test_model_zip = zip_codes(test_model, zip_code)
@@ -708,7 +699,8 @@ def fit_and_test_models(df, control):
                                                     control=control)
                         key = make_key(scope=('zip', zip_code))
                         all_results[key] = zip_code_result
-                        print report.zip_fold_line(key, zip_code_result)
+                        if verbose:
+                            print report.zip_fold_line(key, zip_code_result)
     return all_results
 
 
