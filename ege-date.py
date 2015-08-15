@@ -21,6 +21,7 @@ import pdb
 from pprint import pprint
 from sklearn import cross_validation
 from sklearn import linear_model
+from sklearn import ensemble
 import sys
 import warnings
 
@@ -84,7 +85,7 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
-    debug = False
+    debug = True
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
@@ -92,9 +93,9 @@ def make_control(argv):
         arg_date=sale_date,
         random_seed=random_seed,
         sale_dates=[sale_date],
-        models={'ols': Ols()},
+        models={'rf': Rf(), 'ols': Ols()} if not debug else {'rf': Rf()},
         scopes=['global', 'zip'],
-        training_days=(365,) if debug else range(7, 365, 7),
+        training_days=(7, 366) if debug else range(7, 366, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -110,6 +111,8 @@ def x(mode, df, control):
     names: list of column names for array
     '''
     def transform(v, mode, transformation):
+        if mode is None:
+            return v
         if mode == 'linear':
             return v
         if mode == 'log':
@@ -194,6 +197,7 @@ class ReportOls(object):
     def zip_fold_line(self, key, result):
         fold_number, sale_date, training_days, model_name, scope = key
         assert(isinstance(scope, tuple))
+        assert(scope[0] == 'zip')
         zip_code = scope[1]
         for result_key, result_value in result.iteritems():
             y_mode = result_key[1][:3]
@@ -332,7 +336,8 @@ class Ols(object):
         control: Bunch
 
         RETURN
-        dict with key = (x_mode, y_mode) values = (actuals, estimates, fitted)
+        dict key = (x_mode, y_mode)
+             values = dict with keys 'actuals', 'estimates', 'fitted', x_names
         '''
         # implement variants
         verbose = False
@@ -363,6 +368,154 @@ class Ols(object):
                     print 'estimates: ', value['estimates']
                 all_variants[key] = value
         return all_variants
+
+
+class ReportRf(object):
+    'report generation w no variants (for now'
+
+    def __init__(self):
+        'sale_date days model global fold error abs_error'
+        self.format_global_fold = '%10s %2d %3s %6s f%d %6.0f %3.2f'
+        self.format_zip_fold = '%10s %2d %3s %6d f%d %6.0f %3.2f'
+        self.format_global = '%10s %2d %3s %6s  median %6.0f %3.2f'
+        self.format_zip = '%10s %2d %3s %6d  median %6.0f %3.2f'
+
+    def global_fold_line(self, key, result):
+        fold_number, sale_date, training_days, model_name, scope = key
+        assert(scope == 'global')
+        median_abs_error, median_rel_abs_error = errors(result)
+        line = self.format_global_fold % (sale_date,
+                                          training_days,
+                                          model_name,
+                                          scope,
+                                          fold_number,
+                                          median_abs_error,
+                                          median_rel_abs_error)
+        return line
+
+    def zip_fold_line(self, key, result):
+        fold_number, sale_date, training_days, model_name, scope = key
+        assert(isinstance(scope, tuple))
+        assert(scope[0] == 'zip')
+        zip_code = scope[1]
+        median_abs_error, median_rel_abs_error = errors(result)
+        line = self.format_global_fold % (sale_date,
+                                          training_days,
+                                          model_name,
+                                          zip_code,
+                                          fold_number,
+                                          median_abs_error,
+                                          median_rel_abs_error)
+        return line
+
+    def summarize_global(self, sale_date, training_days, model_name, all_results, control):
+        scope = 'global'
+        median_errors = np.zeros(control.n_folds, dtype=np.float64)
+        median_rel_errors = np.zeros(control.n_folds, dtype=np.float64)
+        for fold_number in xrange(control.n_folds):
+            key = (fold_number, sale_date, training_days, model_name, scope)
+            model_result = all_results[key]
+            median_abs_error, median_rel_abs_error = errors(model_result)
+            fold_line = self.format_global_fold % (sale_date,
+                                                   training_days,
+                                                   model_name,
+                                                   scope,
+                                                   fold_number,
+                                                   median_abs_error,
+                                                   median_rel_abs_error)
+            print fold_line
+            median_errors[fold_number] = median_abs_error
+            median_rel_errors[fold_number] = median_rel_abs_error
+        all_folds_line = self.format_global % (sale_date,
+                                               training_days,
+                                               model_name,
+                                               scope,
+                                               np.median(median_errors),
+                                               np.median(median_rel_errors))
+        print all_folds_line
+
+    def summarize_zip(self, sale_date, training_days, model_name, all_results, control):
+
+        def list_median(lst):
+            assert(len(lst) > 0)
+            return np.median(np.array(lst, dtype=np.float64))
+
+        def report_zip_code(zip_code, keys):
+            median_abs_errors = []
+            median_rel_abs_errors = []
+            for key in keys:
+                model_result = all_results[key]
+                median_abs_error, median_rel_abs_error = errors(model_result)
+                fold_line = self.format_zip_fold % (sale_date,
+                                                    training_days,
+                                                    model_name,
+                                                    zip_code,
+                                                    key[0],  # fold number
+                                                    median_abs_error,
+                                                    median_rel_abs_error)
+                print fold_line
+                median_abs_errors.append(median_abs_error)
+                median_rel_abs_errors.append(median_rel_abs_error)
+            all_folds_line = self.format_zip % (sale_date,
+                                                training_days,
+                                                model_name,
+                                                zip_code,
+                                                list_median(median_abs_errors),
+                                                list_median(median_rel_abs_errors))
+            print all_folds_line
+
+        # determine all zip codes in the specified lines
+        zip_codes = collections.defaultdict(set)
+        for key in all_results.keys():
+            key_fold_number, key_sale_date, key_training_days, key_model_name, key_scope = key
+            if key_scope == 'global':
+                # examine only zip code scopes
+                continue
+            if key_sale_date == sale_date and key_training_days == training_days and key_model_name == model_name:
+                key_zip_code = key_scope[1]
+                zip_codes[key_zip_code].add(key)
+
+        # process each zip code
+        for zip_code, keys in zip_codes.iteritems():
+            report_zip_code(zip_code, keys)
+
+    def summarize(self, sale_date, training_days, model_name, all_results, control):
+        self.summarize_global(sale_date, training_days, model_name, all_results, control)
+        self.summarize_zip(sale_date, training_days, model_name, all_results, control)
+
+
+class Rf(object):
+    'Random forests via sklearn'
+    def __init__(self):
+        self.Model_Constructor = ensemble.RandomForestRegressor
+
+    def reporter(self):
+        return ReportRf
+
+    def run(self, train, test, control):
+        '''fit on train, test on test, return dict of variants
+
+        For now, take all the hyperparameter defaults, except
+        for the random seed.
+
+        RETURN dict with keys 'actuals', 'estimates', 'fitted'
+        '''
+        verbose = False
+        train_x, x_names = x(None, train, control)  # no transformation
+        test_x, _ = x(None, test, control)
+        train_y = y(None, train, control)
+        model = self.Model_Constructor(random_state=control.random_seed)
+        fitted_model = model.fit(train_x, train_y)
+        estimates = fitted_model.predict(test_x)
+        result = {
+            'model': fitted_model,  # contains feature importance and more
+            'x_names': x_names,
+            'estimates': estimates,
+            'actuals': y('None', test, control)}
+        if verbose:
+            for k, v in result.iteritems():
+                print k, v
+        return result
 
 
 def within(sale_date, training_days, df):
@@ -427,161 +580,6 @@ def zip_codes(df, a_zip_code):
     result = df_copy[df_copy['zip5'] == a_zip_code]
     return result
 
-
-def reportOLD(sale_date, training_days, model_name, scope, run_result, control):
-    'print report for given selectors'
-
-    print_folds = True
-    n_folds = control.n_folds
-
-    def median_abs_error(actuals, estimates):
-        abs_error = np.abs(actuals - estimates)
-        median_abs_error = np.median(abs_error)
-        return median_abs_error
-
-    format_global_fold = '%10s %2d %3s %6s %3s %3s f%d %6.0f %3.2f'
-    format_zip_fold = '%10s %2d %3s %6d %3s %3s f%d %6.0f %3.2f'
-    format_global = '%10s %2d %3s %6s %3s %3s median %6.0f %3.2f'
-    format_zip = '%10s %2d %3s %6d %3s %3s median %6.0f %3.2f'
-
-    def print_scope_global():
-        for x_mode in ('log', 'linear'):
-            for y_mode in ('log', 'linear'):
-                errors = np.zeros(n_folds, dtype=np.float64)
-                rel_errors = np.zeros(n_folds, dtype=np.float64)
-                for fold_number in xrange(n_folds):
-                    key = (
-                        sale_date,
-                        training_days,
-                        model_name,
-                        scope,
-                        fold_number)
-                    model_run = run_result[key]
-                    model_run_key = (
-                        'x_mode',
-                        x_mode,
-                        'y_mode',
-                        y_mode)
-                    model_run_value = model_run[model_run_key]
-                    actuals = model_run_value['actuals']
-                    estimates = model_run_value['estimates']
-                    error = median_abs_error(actuals, estimates)
-                    rel_error = error / np.median(actuals)
-                    if print_folds:
-                        line = format_global_fold % (
-                            sale_date,
-                            training_days,
-                            model_name,
-                            scope,
-                            y_mode[:3],
-                            x_mode[:3],
-                            fold_number,
-                            error,
-                            rel_error,
-                        )
-                        print line  # result for one fold
-                    # accumulate across folds
-                    errors[fold_number] = error
-                    rel_errors[fold_number] = rel_error
-                line = format_global % (
-                    sale_date,
-                    training_days,
-                    model_name,
-                    scope,
-                    y_mode[:3],
-                    x_mode[:3],
-                    np.median(errors),
-                    np.median(rel_errors))
-                print line
-
-    def get_all_zip_codes():
-        'return zip-codes in every fold'
-        # zip-codes may differe across folds
-        all_zip_codes_by_fold_number = collections.defaultdict(set)
-        for fold_number in xrange(n_folds):
-            a_run_result = run_result[(sale_date,
-                                       training_days,
-                                       model_name,
-                                       scope,
-                                       fold_number)]
-            for zip_code in a_run_result.keys():
-                all_zip_codes_by_fold_number[fold_number].add(zip_code)
-        zip_codes_in_all_folds = all_zip_codes_by_fold_number[0]
-        for zip_codes in all_zip_codes_by_fold_number.values():
-            zip_codes_in_all_folds.intersection(zip_codes)
-        return zip_codes_in_all_folds
-
-    def zip_code_run_result(zip_code):
-        'retun new run_results containing just items for the zip code'
-        print zip_code
-        result = {}
-        for k, v in run_result.iteritems():
-            date_time, training_days, model_name, scope, fold_number = k
-            if scope != 'zip':
-                continue
-            for run_result_key, run_result_value in v.iteritems():
-                if run_result_key == zip_code:
-                    result.append(run_result_value)
-                pdb.set_trace()
-                pass
-        pass
-
-    def print_scope_zip():
-        # determine all the zip code
-        all_zips = get_all_zip_codes()
-        sorted_zips = sorted(all_zips)
-        for zip_code in sorted_zips:
-            for x_mode in ('log', 'linear'):
-                for y_mode in ('log', 'linear'):
-                    errors = np.zeros(n_folds, dtype=np.float64)
-                    rel_errors = np.zeros(n_folds, dtype=np.float64)
-                    for fold_number in xrange(n_folds):
-                        pdb.set_trace()
-                        key = (sale_date,
-                               training_days,
-                               model_name,
-                               'zip',
-                               fold_number)
-                        print key
-                        model_run = run_result[key][zip_code][
-                            ('x_mode', x_mode, 'y_mode', y_mode)]
-                        actuals = model_run['actuals']
-                        estimates = model_run['estimates']
-                        error = median_abs_error(actuals, estimates)
-                        rel_error = error / np.median(actuals)
-                        if print_folds:
-                            line = format_zip_fold % (sale_date,
-                                                      training_days,
-                                                      model_name,
-                                                      zip_code,
-                                                      y_mode[:3],
-                                                      x_mode[:3],
-                                                      fold_number,
-                                                      error,
-                                                      rel_error)
-                            print line
-                        errors[fold_number] = error
-                        rel_errors[fold_number] = rel_error
-                    pdb.set_trace()
-                    line = format_zip % (sale_date,
-                                         training_days,
-                                         model_name,
-                                         zip_code,
-                                         y_mode[:3],
-                                         x_mode[:3],
-                                         np.median(errors),
-                                         np.median(rel_errors))
-                    print line
-
-    if scope == 'global':
-        print_scope_global()
-    elif scope == 'zip':
-        print 'bypassing print_scope_zip'
-        return
-        print_scope_zip()
-    else:
-        print scope
-        raise RuntimeError('bad scope: ' + str(scope))
 
 
 def make_train_model(df, sale_date, training_days):
@@ -739,6 +737,7 @@ def main(argv):
     print_results(all_results, control)
 
     # write result
+    print 'writing results to', control.path_out
     result = {'control': control,
               'all_results': all_results}
     f = open(control.path_out, 'wb')
