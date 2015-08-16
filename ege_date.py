@@ -57,7 +57,7 @@ def make_control(argv):
     # prior work found that the assessment was not useful
     # just the census and tax roll features
     # predictors with transformation to log domain
-    predictors = {
+    predictors = {  # the columns in the x_arrays are in this order
         'fraction.owner.occupied': None,
         'FIREPLACE.NUMBER': 'log1p',
         'BEDROOMS': 'log1p',
@@ -106,9 +106,7 @@ def make_control(argv):
 def x(mode, df, control):
     '''return 2D np.array, with df x values possibly transformed to log
 
-    RETURNS
-    array: np.array 2D
-    names: list of column names for array
+    RETURNS array: np.array 2D
     '''
     def transform(v, mode, transformation):
         if mode is None:
@@ -133,7 +131,7 @@ def x(mode, df, control):
         v = transform(df[predictor_name].values, mode, transformation)
         array[index] = v
         index += 1
-    return array.T, control.predictors.keys()
+    return array.T
 
 
 def y(mode, df, control):
@@ -336,7 +334,7 @@ class Ols(object):
         test   : dataframe
         control: Bunch
 
-        RETURN dict of values, x_names list
+        RETURN dict of values
         dict key = (x_mode, y_mode)
              values = dict with keys 'actuals', 'estimates', 'fitted', x_names
         '''
@@ -345,8 +343,8 @@ class Ols(object):
         all_variants = {}
         for x_mode in ('log', 'linear'):
             for y_mode in ('log', 'linear'):
-                train_x, x_names = x(x_mode, train, control)
-                test_x, _ = x(x_mode, test, control)
+                train_x = x(x_mode, train, control)
+                test_x = x(x_mode, test, control)
                 train_y = y(y_mode, train, control)
                 model = self.Model_Constructor(fit_intercept=True,
                                                normalize=True,
@@ -357,7 +355,8 @@ class Ols(object):
                 estimates = fitted_model.predict(test_x)
                 key = ('y_mode', y_mode, 'x_mode', x_mode)
                 value = {
-                    'model': fitted_model,  # contains coefficient and intercept
+                    'coef': fitted_model.coef_,
+                    'intercept_': fitted_model.intercept_,
                     'estimates': demode(estimates, y_mode),
                     'actuals': y('linear', test, control)
                 }
@@ -367,7 +366,7 @@ class Ols(object):
                     print 'actuals: ', value['actuals']
                     print 'estimates: ', value['estimates']
                 all_variants[key] = value
-        return all_variants, x_names
+        return all_variants
 
 
 class ReportRf(object):
@@ -498,23 +497,24 @@ class Rf(object):
         For now, take all the hyperparameter defaults, except
         for the random seed.
 
-        RETURN dict with keys 'actuals', 'estimates', 'fitted'
+        RETURN dict with keys 'actuals', 'estimates', 'feature_importances'
         '''
         verbose = False
-        train_x, x_names = x(None, train, control)  # no transformation
-        test_x, _ = x(None, test, control)
+        train_x = x(None, train, control)  # no transformation
+        test_x = x(None, test, control)
         train_y = y(None, train, control)
         model = self.Model_Constructor(random_state=control.random_seed)
         fitted_model = model.fit(train_x, train_y)
         estimates = fitted_model.predict(test_x)
+        # return selected fitted results
         result = {
-            'model': fitted_model,  # contains feature importance and more
+            'feature_importances': fitted_model.feature_importances_,
             'estimates': estimates,
             'actuals': y('None', test, control)}
         if verbose:
             for k, v in result.iteritems():
                 print k, v
-        return result, x_names
+        return result
 
 
 def within(sale_date, training_days, df):
@@ -644,6 +644,50 @@ def read_training_data(control):
     'return dataframe'
 
 
+def squeeze(result, verbose=False):
+    'replace float64 with float32'
+
+    def is_np_array_float64(x):
+        return isinstance(x, np.ndarray) and x.dtype == np.float64
+
+    def is_np_scalar_float64(x):
+        return isinstance(x, np.float64)
+
+    if verbose:
+        pprint(result)
+    assert(isinstance(result, dict))
+    new_result = {}
+    for k, v in result.iteritems():
+        if isinstance(k, str):
+            # rf result
+            if is_np_array_float64(v):
+                # e.g., actual, estimate, other info in a vector
+                new_result[k] = np.array(v, dtype=np.float32)
+            else:
+                print k, v
+                raise RuntimeError('unexpected')
+        elif isinstance(k, tuple):
+            # ols result
+            new_ols_result = {}
+            for ols_key, ols_value in v.iteritems():
+                if is_np_array_float64(ols_value):
+                    new_ols_result[ols_key] = np.array(ols_value, dtype=np.float32)
+                elif is_np_scalar_float64(ols_value):
+                    new_ols_result[ols_key] = np.float32(ols_value)
+                else:
+                    print ols_key, ols_value
+                    raise RuntimeError('unexpected')
+            new_result[k] = new_ols_result
+        else:
+            # unexpected
+            print k, v
+            raise RuntimeError('unexpected')
+
+    if verbose:
+        pprint(new_result)
+    return new_result
+
+
 def fit_and_test_models(df, control):
     '''Return all_results dict and list of feature names
 
@@ -673,11 +717,11 @@ def fit_and_test_models(df, control):
                         return (fold_number, sale_date, training_days, model_name, scope)
 
                     # determine global results (for all areas)
-                    global_result, x_names = model.run(train=train_model,
-                                                       test=test_model,
-                                                       control=control)
+                    global_result = model.run(train=train_model,
+                                              test=test_model,
+                                              control=control)
                     key = make_key(scope='global')
-                    all_results[key] = global_result
+                    all_results[key] = squeeze(global_result)
                     report = model.reporter()()  # instantiate report class
                     if verbose:
                         print report.global_fold_line(key, global_result)
@@ -693,14 +737,14 @@ def fit_and_test_models(df, control):
                         train_model_zip = zip_codes(train_model, zip_code)
                         test_model_zip = zip_codes(test_model, zip_code)
                         assert(len(train_model_zip) > 0)
-                        zip_code_result, x_names = model.run(train=train_model_zip,
-                                                             test=test_model_zip,
-                                                             control=control)
+                        zip_code_result = model.run(train=train_model_zip,
+                                                    test=test_model_zip,
+                                                    control=control)
                         key = make_key(scope=('zip', zip_code))
-                        all_results[key] = zip_code_result
+                        all_results[key] = squeeze(zip_code_result)
                         if verbose:
                             print report.zip_fold_line(key, zip_code_result)
-    return all_results, x_names
+    return all_results
 
 
 def print_results(all_results, control):
@@ -732,15 +776,14 @@ def main(argv):
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
 
-    all_results, x_names = fit_and_test_models(df_loaded, control)
+    all_results = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
     print_results(all_results, control)
 
     # write result
     print 'writing results to', control.path_out
-    result = {'control': control,
-              'x_names': x_names,
+    result = {'control': control,  # control.predictors orders the x values
               'all_results': all_results}
     f = open(control.path_out, 'wb')
     pickle.dump(result, f)
