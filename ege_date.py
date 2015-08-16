@@ -85,7 +85,7 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
-    debug = True
+    debug = False
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
@@ -579,7 +579,6 @@ def zip_codes(df, a_zip_code):
     df_copy = df.copy(deep=True)
     result = df_copy[df_copy['zip5'] == a_zip_code]
     return result
-
 
 
 def make_train_model(df, sale_date, training_days):
