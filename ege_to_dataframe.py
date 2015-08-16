@@ -125,7 +125,7 @@ def ege_to_dataframe(ege_results):
                 for mode, result in v.iteritems():
                     model_id = append_modes(k_model_name, mode)
                     df = append_df(df,
-                                   k_fold_number, k_sale_date, k_training_days, k_scope, k_model_name,
+                                   k_fold_number, k_sale_date, k_training_days, k_scope, model_id,
                                    result)
             elif is_zip_code(k_scope):
                 for mode, result in v.iteritems():
