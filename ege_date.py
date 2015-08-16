@@ -413,7 +413,13 @@ class ReportRf(object):
         median_rel_errors = np.zeros(control.n_folds, dtype=np.float64)
         for fold_number in xrange(control.n_folds):
             key = (fold_number, sale_date, training_days, model_name, scope)
+            if key not in all_results:
+                # can happen when a model could not be fit
+                print 'model_result missing key', key
+                continue
             model_result = all_results[key]
+            if len(model_result['actuals']) == 0:
+                continue
             median_abs_error, median_rel_abs_error = errors(model_result)
             fold_line = self.format_global_fold % (sale_date,
                                                    training_days,
@@ -693,7 +699,6 @@ def fit_and_test_models(df, control):
 
     all_results has results for each fold, sale date, training period model, scope
     '''
-    pdb.set_trace()
     verbose = False
     all_results = {}
     fold_number = -1
@@ -709,7 +714,15 @@ def fit_and_test_models(df, control):
         for sale_date in control.sale_dates:
             for training_days in control.training_days:
                 train_model = make_train_model(train, sale_date, training_days)
+                if len(train_model) == 0:
+                    print 'no training data fold %d sale_date %s training_days %d' % (
+                        fold_number, sale_date, training_days)
+                    sys.exit(1)
                 test_model = make_test_model(test, sale_date)
+                if len(test_model) == 0:
+                    print 'no testing data fold %d sale_date %s training_days %d' % (
+                        fold_number, sale_date, training_days)
+                    continue
                 for model_name, model in control.models.iteritems():
                     print fold_number, sale_date, training_days, model_name
 
@@ -717,6 +730,10 @@ def fit_and_test_models(df, control):
                         return (fold_number, sale_date, training_days, model_name, scope)
 
                     # determine global results (for all areas)
+                    if len(test_model) == 0 or len(train_model) == 0:
+                        print 'global zero length', len(test_model), len(train_model)
+                        pdb.set_trace()
+                        continue
                     global_result = model.run(train=train_model,
                                               test=test_model,
                                               control=control)
@@ -737,6 +754,8 @@ def fit_and_test_models(df, control):
                         train_model_zip = zip_codes(train_model, zip_code)
                         test_model_zip = zip_codes(test_model, zip_code)
                         assert(len(train_model_zip) > 0)
+                        if len(train_model_zip) == 0 or len(test_model_zip) == 0:
+                            print 'zip zero length', zip_code, len(test_model_zip), len(train_model_zip)
                         zip_code_result = model.run(train=train_model_zip,
                                                     test=test_model_zip,
                                                     control=control)
