@@ -157,6 +157,7 @@ def demode(v, mode):
 
 def errors(model_result):
     'return median_absolute_error and median_relative_absolute_error'
+    pprint(model_result)
     actuals = model_result['actuals']
     estimates = model_result['estimates']
     abs_error = np.abs(actuals - estimates)
@@ -335,7 +336,7 @@ class Ols(object):
         test   : dataframe
         control: Bunch
 
-        RETURN
+        RETURN dict of values, x_names list
         dict key = (x_mode, y_mode)
              values = dict with keys 'actuals', 'estimates', 'fitted', x_names
         '''
@@ -357,7 +358,6 @@ class Ols(object):
                 key = ('y_mode', y_mode, 'x_mode', x_mode)
                 value = {
                     'model': fitted_model,  # contains coefficient and intercept
-                    'x_names': x_names,
                     'estimates': demode(estimates, y_mode),
                     'actuals': y('linear', test, control)
                 }
@@ -367,7 +367,7 @@ class Ols(object):
                     print 'actuals: ', value['actuals']
                     print 'estimates: ', value['estimates']
                 all_variants[key] = value
-        return all_variants
+        return all_variants, x_names
 
 
 class ReportRf(object):
@@ -493,7 +493,7 @@ class Rf(object):
         return ReportRf
 
     def run(self, train, test, control):
-        '''fit on train, test on test, return dict of variants
+        '''fit on train, test on test, return dict of variants and x_names
 
         For now, take all the hyperparameter defaults, except
         for the random seed.
@@ -509,13 +509,12 @@ class Rf(object):
         estimates = fitted_model.predict(test_x)
         result = {
             'model': fitted_model,  # contains feature importance and more
-            'x_names': x_names,
             'estimates': estimates,
             'actuals': y('None', test, control)}
         if verbose:
             for k, v in result.iteritems():
                 print k, v
-        return result
+        return result, x_names
 
 
 def within(sale_date, training_days, df):
@@ -646,7 +645,10 @@ def read_training_data(control):
 
 
 def fit_and_test_models(df, control):
-    'Return all_results dict with results for each fold, sale date, training period model, scope'
+    '''Return all_results dict and list of feature names
+
+    all_results has results for each fold, sale date, training period model, scope
+    '''
     pdb.set_trace()
     verbose = False
     all_results = {}
@@ -671,9 +673,9 @@ def fit_and_test_models(df, control):
                         return (fold_number, sale_date, training_days, model_name, scope)
 
                     # determine global results (for all areas)
-                    global_result = model.run(train=train_model,
-                                              test=test_model,
-                                              control=control)
+                    global_result, x_names = model.run(train=train_model,
+                                                       test=test_model,
+                                                       control=control)
                     key = make_key(scope='global')
                     all_results[key] = global_result
                     report = model.reporter()()  # instantiate report class
@@ -691,14 +693,14 @@ def fit_and_test_models(df, control):
                         train_model_zip = zip_codes(train_model, zip_code)
                         test_model_zip = zip_codes(test_model, zip_code)
                         assert(len(train_model_zip) > 0)
-                        zip_code_result = model.run(train=train_model_zip,
-                                                    test=test_model_zip,
-                                                    control=control)
+                        zip_code_result, x_names = model.run(train=train_model_zip,
+                                                             test=test_model_zip,
+                                                             control=control)
                         key = make_key(scope=('zip', zip_code))
                         all_results[key] = zip_code_result
                         if verbose:
                             print report.zip_fold_line(key, zip_code_result)
-    return all_results
+    return all_results, x_names
 
 
 def print_results(all_results, control):
@@ -730,7 +732,7 @@ def main(argv):
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
 
-    all_results = fit_and_test_models(df_loaded, control)
+    all_results, x_names = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
     print_results(all_results, control)
@@ -738,6 +740,7 @@ def main(argv):
     # write result
     print 'writing results to', control.path_out
     result = {'control': control,
+              'x_names': x_names,
               'all_results': all_results}
     f = open(control.path_out, 'wb')
     pickle.dump(result, f)
