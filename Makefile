@@ -120,7 +120,7 @@ include $(WORKING)/python-dependencies.makefile
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 # ege files; STEM is the sale_date
-$(WORKING)/ege_date-%.dataframe.pickle: ege_to_dataframe.py
+$(WORKING)/ege_date-%.dataframe.pickle: ege_to_dataframe.py $(WORKING)/ege_date-%.pickle
 	$(PYTHON) ege_to_dataframe.py --date $*
 
 $(WORKING)/ege_date-%.pickle: ege_date.py
