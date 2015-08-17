@@ -58,57 +58,58 @@ ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 
 ALL += $(WORKING)/ege_date-2004-02-16.pickle
-ALL += $(WORKING)/ege_date-2004-05-16.pickle
+ALL += $(WORKING)/ege_date-2004-05-14.pickle
 ALL += $(WORKING)/ege_date-2004-08-15.pickle
 ALL += $(WORKING)/ege_date-2004-11-15.pickle
 
-ALL += $(WORKING)/ege_date-2004-02-16.dataframe.pickle
-ALL += $(WORKING)/ege_date-2004-05-16.dataframe.pickle
-ALL += $(WORKING)/ege_date-2004-08-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2004-11-15.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2004-02-16.pickle
+ALL += $(WORKING)/ege_to_dataframe-2004-05-14.pickle
+ALL += $(WORKING)/ege_to_dataframe-2004-08-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2004-11-15.pickle
 
 ALL += $(WORKING)/ege_date-2005-02-15.pickle
 ALL += $(WORKING)/ege_date-2005-05-16.pickle
 ALL += $(WORKING)/ege_date-2005-08-15.pickle
 ALL += $(WORKING)/ege_date-2005-11-15.pickle
 
-ALL += $(WORKING)/ege_date-2005-02-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2005-05-16.dataframe.pickle
-ALL += $(WORKING)/ege_date-2005-08-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2005-11-15.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2005-02-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2005-05-16.pickle
+ALL += $(WORKING)/ege_to_dataframe-2005-08-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2005-11-15.pickle
 
 ALL += $(WORKING)/ege_date-2006-02-15.pickle
 ALL += $(WORKING)/ege_date-2006-05-15.pickle
 ALL += $(WORKING)/ege_date-2006-08-15.pickle
 ALL += $(WORKING)/ege_date-2006-11-15.pickle
 
-ALL += $(WORKING)/ege_date-2006-02-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2006-05-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2006-08-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2006-11-15.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2006-02-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2006-05-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2006-08-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2006-11-15.pickle
 
 ALL += $(WORKING)/ege_date-2007-02-15.pickle
 ALL += $(WORKING)/ege_date-2007-05-15.pickle
 ALL += $(WORKING)/ege_date-2007-08-15.pickle
 ALL += $(WORKING)/ege_date-2007-11-15.pickle
 
-ALL += $(WORKING)/ege_date-2007-02-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2007-05-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2007-08-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2007-11-15.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2007-02-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2007-05-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2007-08-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2007-11-15.pickle
 
 ALL += $(WORKING)/ege_date-2008-02-15.pickle
 ALL += $(WORKING)/ege_date-2008-05-15.pickle
 ALL += $(WORKING)/ege_date-2008-08-15.pickle
-ALL += $(WORKING)/ege_date-2008-11-16.pickle
+ALL += $(WORKING)/ege_date-2008-11-14.pickle
 
-ALL += $(WORKING)/ege_date-2008-02-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2008-05-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2008-08-15.dataframe.pickle
-ALL += $(WORKING)/ege_date-2008-11-16.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2008-02-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2008-05-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2008-08-15.pickle
+ALL += $(WORKING)/ege_to_dataframe-2008-11-14.pickle
 
 ALL += $(WORKING)/ege_date-2009-02-16.pickle
-ALL += $(WORKING)/ege_date-2009-02-16.dataframe.pickle
+ALL += $(WORKING)/ege_to_dataframe-2009-02-16.pickle
+
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 #ALL += $(WORKING)/record-counts.tex
 #ALL += $(WORKING)/python-dependencies.makefile
@@ -120,8 +121,8 @@ include $(WORKING)/python-dependencies.makefile
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 # ege files; STEM is the sale_date
-$(WORKING)/ege_date-%.dataframe.pickle: ege_to_dataframe.py $(WORKING)/ege_date-%.pickle
-	$(PYTHON) ege_to_dataframe.py --date $*
+$(WORKING)/ege_to_dataframe-%.pickle: ege_to_dataframe.py $(WORKING)/ege_date-%.pickle
+	$(PYTHON) ege_to_dataframe.py $*
 
 $(WORKING)/ege_date-%.pickle: ege_date.py
 	$(PYTHON) ege_date.py $*
