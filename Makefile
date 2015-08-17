@@ -109,6 +109,7 @@ ALL += $(WORKING)/ege_to_dataframe-2008-11-14.pickle
 
 ALL += $(WORKING)/ege_date-2009-02-16.pickle
 ALL += $(WORKING)/ege_to_dataframe-2009-02-16.pickle
+ALL += $(WORKING)/ege_summary_by_scope-2009-02-16.pickle
 
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 #ALL += $(WORKING)/record-counts.tex
@@ -121,6 +122,9 @@ include $(WORKING)/python-dependencies.makefile
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 # ege files; STEM is the sale_date
+$(WORKING)/ege_summary_by_scope-%.pickle: ege_summary_by_scope.py $(WORKING)/ege_to_dataframe-%.pickle
+	$(PYTHON) ege_summary_by_scope.py $*
+
 $(WORKING)/ege_to_dataframe-%.pickle: ege_to_dataframe.py $(WORKING)/ege_date-%.pickle
 	$(PYTHON) ege_to_dataframe.py $*
 
