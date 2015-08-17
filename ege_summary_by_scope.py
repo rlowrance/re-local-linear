@@ -41,7 +41,7 @@ def make_control(argv):
     b = Bunch(debugging=False,
               path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
               path_in=directory('working') + ('ege_to_dataframe-%s.pickle' % sale_date),
-              path_out=directory('working') + ('ege_summary_by_scope-%s.txt' % sale_date),
+              path_out=directory('working') + ('ege_summary_by_scope-%s.pickle' % sale_date),
               testing=testing)
 
     return b
