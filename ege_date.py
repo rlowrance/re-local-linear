@@ -230,6 +230,10 @@ class ReportOls(object):
                 for fold_number in xrange(control.n_folds):
                     # determine errors in the fold
                     key = (fold_number, sale_date, training_days, model_name, scope)
+                    if key not in all_results:
+                        print 'key', key
+                        print 'not in result'
+                        continue
                     result = all_results[key]
                     model_result = result[('y_mode', y_mode, 'x_mode', x_mode)]
                     median_abs_error, median_rel_abs_error = errors(model_result)
