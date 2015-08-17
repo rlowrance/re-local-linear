@@ -92,7 +92,7 @@ def make_control(argv):
         path_out=directory('working') + base_name + '-%s' % sale_date + '.pickle',
         arg_date=sale_date,
         random_seed=random_seed,
-        sale_dates=[sale_date],
+        sale_date=sale_date,
         models={'rf': Rf(), 'ols': Ols()} if not debug else {'rf': Rf()},
         scopes=['global', 'zip'],
         training_days=(7, 366) if debug else range(7, 366, 7),
@@ -706,38 +706,35 @@ def fit_and_test_models(df, control):
     verbose = False
     all_results = {}
     fold_number = -1
-    kf = cross_validation.KFold(n=(len(df)),
-                                n_folds=control.n_folds,
-                                shuffle=True,
-                                random_state=control.random_seed)
-    for train_indices, test_indices in kf:
+    on_sale_date = df['sale.python_date'] == control.sale_date
+    print 'sale_date %s has %d samples' % (control.sale_date, sum(on_sale_date))
+    skf = cross_validation.StratifiedKFold(on_sale_date, control.n_folds)
+    for train_indices, test_indices in skf:
         fold_number += 1
         # don't create views (just to be careful)
         train = df.iloc[train_indices].copy(deep=True)
         test = df.iloc[test_indices].copy(deep=True)
-        for sale_date in control.sale_dates:
-            for training_days in control.training_days:
-                train_model = make_train_model(train, sale_date, training_days)
-                if len(train_model) == 0:
-                    print 'no training data fold %d sale_date %s training_days %d' % (
-                        fold_number, sale_date, training_days)
-                    sys.exit(1)
-                test_model = make_test_model(test, sale_date)
-                if len(test_model) == 0:
-                    print 'no testing data fold %d sale_date %s training_days %d' % (
-                        fold_number, sale_date, training_days)
-                    continue
-                for model_name, model in control.models.iteritems():
-                    print fold_number, sale_date, training_days, model_name
+        for training_days in control.training_days:
+            train_model = make_train_model(train, control.sale_date, training_days)
+            if len(train_model) == 0:
+                print 'no training data fold %d sale_date %s training_days %d' % (
+                    fold_number, control.sale_date, training_days)
+                sys.exit(1)
+            test_model = make_test_model(test, control.sale_date)
+            if len(test_model) == 0:
+                print 'no testing data fold %d sale_date %s training_days %d' % (
+                    fold_number, control.sale_date, training_days)
+                continue
+            for model_name, model in control.models.iteritems():
+                print fold_number, control.sale_date, training_days, model_name
 
-                    def make_key(scope):
-                        return (fold_number, sale_date, training_days, model_name, scope)
+                def make_key(scope):
+                    return (fold_number, control.sale_date, training_days, model_name, scope)
 
-                    # determine global results (for all areas)
-                    if len(test_model) == 0 or len(train_model) == 0:
-                        print 'global zero length', len(test_model), len(train_model)
-                        pdb.set_trace()
-                        continue
+                # determine global results (for all areas)
+                if len(test_model) == 0 or len(train_model) == 0:
+                    print 'skipping global zero length', len(test_model), len(train_model)
+                else:
                     global_result = model.run(train=train_model,
                                               test=test_model,
                                               control=control)
@@ -747,19 +744,13 @@ def fit_and_test_models(df, control):
                     if verbose:
                         print report.global_fold_line(key, global_result)
 
-                    # determine results for each zip code in test data
-                    for zip_code in unique_zip_codes(test_model):
-                        if zip_code not in train_model.zip5.values:
-                            if False:
-                                print 'skipping test zip code %d not in training set for date %s' % (
-                                    zip_code,
-                                    sale_date)
-                            continue
-                        train_model_zip = zip_codes(train_model, zip_code)
-                        test_model_zip = zip_codes(test_model, zip_code)
-                        assert(len(train_model_zip) > 0)
-                        if len(train_model_zip) == 0 or len(test_model_zip) == 0:
-                            print 'zip zero length', zip_code, len(test_model_zip), len(train_model_zip)
+                # determine results for each zip code in test data
+                for zip_code in unique_zip_codes(test_model):
+                    train_model_zip = zip_codes(train_model, zip_code)
+                    test_model_zip = zip_codes(test_model, zip_code)
+                    if len(train_model_zip) == 0 or len(test_model_zip) == 0:
+                        print 'skipping zip zero length', zip_code, len(test_model_zip), len(train_model_zip)
+                    else:
                         zip_code_result = model.run(train=train_model_zip,
                                                     test=test_model_zip,
                                                     control=control)
@@ -771,15 +762,14 @@ def fit_and_test_models(df, control):
 
 
 def print_results(all_results, control):
-    for sale_date in control.sale_dates:
-        for training_days in control.training_days:
-            for model_name, model in control.models.iteritems():
-                report = model.reporter()()  # how to print is in the model result
-                report.summarize(sale_date,
-                                 training_days,
-                                 model_name,
-                                 all_results,
-                                 control)
+    for training_days in control.training_days:
+        for model_name, model in control.models.iteritems():
+            report = model.reporter()()  # how to print is in the model result
+            report.summarize(control.sale_date,
+                             training_days,
+                             model_name,
+                             all_results,
+                             control)
 
 
 def main(argv):
