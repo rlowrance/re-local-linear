@@ -1,6 +1,6 @@
 '''convert ege results dict to pandas dataframe
 
-COMMAND LINE: python ege_to_dataframe.py --date YYYY-MM-DD
+COMMAND LINE: python ege_to_dataframe.py YYYY-MM-DD
 
 API
 from age_to_dataframe import ege_to_dataframe
@@ -22,7 +22,7 @@ import sys
 from Bunch import Bunch
 from directory import directory
 from Logger import Logger
-import parse_command_line
+# import parse_command_line
 from ege_date import Rf, Ols, ReportRf, ReportOls
 
 
@@ -39,20 +39,19 @@ def make_control(argv):
 
     random.seed(123456)
 
-    arg_date = parse_command_line.get_arg(argv, '--date')
-    path_format = directory('working') + 'ege_date-%s.pickle'
-
     base_name = argv[0].split('.')[0]
     now = datetime.datetime.now()
     testing = False
+
+    arg_date = argv[1]
 
     # supply common conrol values
     b = Bunch(debugging=False,
               base_name=base_name,
               me=argv[0],
               path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
-              path_in=path_format % arg_date,
-              path_out=path_format % (arg_date + '.dataframe'),
+              path_in=directory('working') + 'ege_date-' + arg_date + '.pickle',
+              path_out=directory('working') + 'ege_to_dataframe-' + arg_date + '.pickle',
               testing=testing)
 
     return b
