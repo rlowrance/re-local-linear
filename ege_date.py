@@ -707,7 +707,9 @@ def fit_and_test_models(df, control):
     all_results = {}
     fold_number = -1
     on_sale_date = df['sale.python_date'] == control.sale_date
-    print 'sale_date %s has %d samples' % (control.sale_date, sum(on_sale_date))
+    num_test_samples = sum(on_sale_date)
+    print 'sale_date %s has %d samples' % (control.sale_date, num_test_samples)
+    assert num_test_samples >= control.n_folds, 'unable to form folds'
     skf = cross_validation.StratifiedKFold(on_sale_date, control.n_folds)
     for train_indices, test_indices in skf:
         fold_number += 1
@@ -758,6 +760,7 @@ def fit_and_test_models(df, control):
                         all_results[key] = squeeze(zip_code_result)
                         if verbose:
                             print report.zip_fold_line(key, zip_code_result)
+    print 'num test samples across all folds:', num_test_samples
     return all_results
 
 
@@ -792,7 +795,8 @@ def main(argv):
     all_results = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
-    print_results(all_results, control)
+    if False:
+        print_results(all_results, control)
 
     # write result
     print 'writing results to', control.path_out
