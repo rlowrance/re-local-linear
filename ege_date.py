@@ -344,32 +344,37 @@ class Ols(object):
         '''
         # implement variants
         verbose = False
+
+        def variant(x_mode, y_mode):
+            train_x = x(x_mode, train, control)
+            test_x = x(x_mode, test, control)
+            train_y = y(y_mode, train, control)
+            model = self.Model_Constructor(fit_intercept=True,
+                                           normalize=True,
+                                           copy_X=True)
+            fitted_model = model.fit(train_x, train_y)
+            # if the model cannot be fitted, LinearRegressor returns
+            # the mean of the train_y values
+            estimates = fitted_model.predict(test_x)
+            value = {
+                'coef': fitted_model.coef_,
+                'intercept_': fitted_model.intercept_,
+                'estimates': demode(estimates, y_mode),
+                'actuals': y('linear', test, control)
+            }
+            # check results
+            if verbose:
+                print 'x_mode, y_mode: ', x_mode, y_mode
+                print 'actuals: ', value['actuals']
+                print 'estimates: ', value['estimates']
+            return value
+
         all_variants = {}
         for x_mode in ('log', 'linear'):
             for y_mode in ('log', 'linear'):
-                train_x = x(x_mode, train, control)
-                test_x = x(x_mode, test, control)
-                train_y = y(y_mode, train, control)
-                model = self.Model_Constructor(fit_intercept=True,
-                                               normalize=True,
-                                               copy_X=True)
-                fitted_model = model.fit(train_x, train_y)
-                # if the model cannot be fitted, LinearRegressor returns
-                # the mean of the train_y values
-                estimates = fitted_model.predict(test_x)
+                variant_value = variant(x_mode, y_mode)
                 key = ('y_mode', y_mode, 'x_mode', x_mode)
-                value = {
-                    'coef': fitted_model.coef_,
-                    'intercept_': fitted_model.intercept_,
-                    'estimates': demode(estimates, y_mode),
-                    'actuals': y('linear', test, control)
-                }
-                # check results
-                if verbose:
-                    print 'x_mode, y_mode: ', x_mode, y_mode
-                    print 'actuals: ', value['actuals']
-                    print 'estimates: ', value['estimates']
-                all_variants[key] = value
+                all_variants[key] = variant_value
         return all_variants
 
 
@@ -502,29 +507,38 @@ class Rf(object):
         return ReportRf
 
     def run(self, train, test, control):
-        '''fit on train, test on test, return dict of variants and x_names
+        '''fit on train, test on test, return dict of variants
 
-        For now, take all the hyperparameter defaults, except
-        for the random seed.
+        The variants are defined by the number of trees in the forest
 
-        RETURN dict with keys 'actuals', 'estimates', 'feature_importances'
+        RETURN dict with key = variant_description
         '''
         verbose = False
-        train_x = x(None, train, control)  # no transformation
-        test_x = x(None, test, control)
-        train_y = y(None, train, control)
-        model = self.Model_Constructor(random_state=control.random_seed)
-        fitted_model = model.fit(train_x, train_y)
-        estimates = fitted_model.predict(test_x)
-        # return selected fitted results
-        result = {
-            'feature_importances': fitted_model.feature_importances_,
-            'estimates': estimates,
-            'actuals': y('None', test, control)}
-        if verbose:
-            for k, v in result.iteritems():
-                print k, v
-        return result
+
+        def variant(n_trees):
+            train_x = x(None, train, control)  # no transformation
+            test_x = x(None, test, control)
+            train_y = y(None, train, control)
+            model = self.Model_Constructor(n_estimators=n_trees,
+                                           random_state=control.random_seed)
+            fitted_model = model.fit(train_x, train_y)
+            estimates = fitted_model.predict(test_x)
+            # return selected fitted results
+            result = {
+                'feature_importances': fitted_model.feature_importances_,
+                'estimates': estimates,
+                'actuals': y('None', test, control)}
+            if verbose:
+                for k, v in result.iteritems():
+                    print k, v
+            return result
+
+        all_variants = {}
+        for n_trees in (10, 100, 300, 1000):
+            variant_value = variant(n_trees)
+            key = ('n_trees', n_trees)
+            all_variants[key] = variant_value
+        return all_variants
 
 
 def within(sale_date, training_days, df):
