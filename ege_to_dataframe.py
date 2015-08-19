@@ -114,6 +114,10 @@ def ege_to_dataframe(ege_results):
         mode_x = mode[3]
         return base_name + ' ' + mode_y[:3] + ' ' + mode_x[:3]
 
+    def rf_model_id(rf_mode):
+        # rf_mode is number of trees in the forest
+        return 'rf %3d' % rf_mode
+
     df = make_df()
     for k, v in ege_results.iteritems():
         print k
@@ -136,11 +140,20 @@ def ege_to_dataframe(ege_results):
             else:
                 RuntimeError('bad k_scope: ' + k_scope)
         elif k_model_name == 'rf':
+            pdb.set_trace()  # handle the rf variants; follow the ols code
             if k_scope == 'global':
-                df = append_df(df, k_fold_number, k_sale_date, k_training_days, k_scope, k_model_name, v)
+                for mode, result in v.iteritems():
+                    model_id = rf_model_id(mode)
+                    df = append_df(df,
+                                   k_fold_number, k_sale_date, k_training_days, k_scope, model_id,
+                                   result)
             elif is_zip_code(k_scope):
-                zip_code = k_scope[1]
-                df = append_df(df, k_fold_number, k_sale_date, k_training_days, zip_code, k_model_name, v)
+                for mode, result in v.iteritems():
+                    model_id = rf_model_id(mode)
+                    zip_code = k_scope[1]
+                    df = append_df(df,
+                                   k_fold_number, k_sale_date, k_training_days, zip_code, model_id,
+                                   result)
             else:
                 RuntimeError('bad k_scope: ' + k_scope)
         else:
