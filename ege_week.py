@@ -4,8 +4,8 @@ invocation: python ege_week.py YYYY-MM-DD
  YYYY-MM-DD mid-point of week; anayze -3 to +3 days
 
 OUTPUT FILES
- WORKING/ege_week-YYYY-MM-DD-MODEL-ae.pickle  dataframe with actual and estimates
- WORKING/ege_week-YYYY-MM-DD-MODEL-im.pickle  dict with importance of features
+ WORKING/ege_week-YYYY-MM-DD-MODEL-df[-test].pickle   dataframe with median errors
+ WORKING/ege_week-YYYY-MM-DD-MODEL-dict-test].pickle  dict with importance of features, actuals, estimates
 
 '''
 
@@ -80,22 +80,32 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
-    debug = True
+    debug = False
+    testing = True
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        path_out='%s%s-%s.pickle' % (
-            directory('working'), base_name, sale_date),
+        path_out_df='%s%s-%s-df%s.pickle' % (
+            directory('working'),
+            base_name,
+            sale_date,
+            '-test' if testing else ''),
+        path_out_dict='%s%s-%s-dict%s.pickle' % (
+            directory('working'),
+            base_name,
+            sale_date,
+            '-test' if testing else ''),
         arg_date=sale_date,
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
         models={'rf': Rf(), 'ols': Ols()},
         scopes=['global', 'zip'],
-        training_days=(7, 366) if debug else range(7, 366, 7),
+        training_days=(7, 14, 21) if testing else range(7, 366, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
+        testing=testing,
         debug=debug)
     return b
 
@@ -542,7 +552,7 @@ class Rf(object):
             return result
 
         all_variants = {}
-        for n_trees in (10, 100, 300, 1000):
+        for n_trees in (10, 100) if control.testing else (10, 100, 300, 1000):
             variant_value = variant(n_trees)
             key = ('n_trees', n_trees)
             all_variants[key] = variant_value
@@ -682,6 +692,52 @@ def read_training_data(control):
     'return dataframe'
 
 
+class AccumulateMedianErrors():
+    def __init__(self):
+        self.dfa = DataframeAppender([('fold_number', np.int64),
+                                      ('training_days', np.int64),
+                                      ('model_id', object),  # string: model + hyperparameters
+                                      ('scope', object),     # 'global' or zip code
+                                      ('median_abs_error', np.float64),
+                                      ('median_rel_error', np.float64),
+                                      ('n_samples', np.float64)])
+
+    def accumulate(self, key, result):
+        verbose = False
+        fold_number, sale_date, training_days, model_name, scope = key
+        if model_name == 'rf':
+            self._accumulate_rf(fold_number, training_days, scope, result)
+        elif model_name == 'ols':
+            self._accumulate_ols(fold_number, training_days, scope, result)
+        else:
+            raise RuntimeError('bad model_name: ' + str(model_name))
+        if verbose:
+            print self.dfa.df
+
+    def _accumulate_ols(self, fold_number, training_days, scope, result):
+        for k, v in result.iteritems():
+            model_id = 'rf ' + str(k[1])[:3] + ' ' + str(k[3])[:3]
+            self._append(fold_number, training_days, model_id, scope, v)
+
+    def _accumulate_rf(self, fold_number, training_days, scope, result):
+        for k, v in result.iteritems():
+            model_id = 'rf ' + str(k[1])
+            self._append(fold_number, training_days, model_id, scope, v)
+
+    def _append(self, fold_number, training_days, model_id, scope, model_result):
+        median_abs_error, median_rel_error = errors(model_result)
+        self.dfa.append([fold_number,
+                         training_days,
+                         model_id,
+                         scope if scope == 'global' else str(scope[1]),
+                         median_abs_error,
+                         median_rel_error,
+                         len(model_result['actuals'])])
+
+    def dataframe(self):
+        return self.dfa
+
+
 def squeeze(result, verbose=False):
     'replace float64 with float32'
 
@@ -727,26 +783,11 @@ def squeeze(result, verbose=False):
 
 
 def fit_and_test_models(df_all, control):
-    '''Return all_results dict and list of feature names
-
-    all_results has results for each fold, sale date, training period model, scope
+    '''Return all_results dict and median_errors dataframe
     '''
     verbose = True
 
-#    accumulate = Bunch(
-#        ae=DataframeAppender([('fold_number', np.int32),  # actual and estimates
-#                              ('model_id', object),
-#                              ('sample_id', np.int64),
-#                              ('actual', np.float64),
-#                              ('estimate', np.float64),
-#                              ]),
-#        fi={},  # rf: feature importances
-#        coef={},  # ols: coefficients
-#        intercepts={},  # ols: intercepts
-#    )
-
     # determine samples that are in the test period ( = 1 week around the sale_date)
-    pdb.set_trace()
     first_sale_date = control.sale_date - datetime.timedelta(3)
     last_sale_date = control.sale_date + datetime.timedelta(3)
     in_sale_period = is_between(df=df_all,
@@ -757,6 +798,7 @@ def fit_and_test_models(df_all, control):
     assert num_sale_samples >= control.n_folds, 'unable to form folds'
 
     all_results = {}
+    median_errors = AccumulateMedianErrors()
     fold_number = -1
     skf = cross_validation.StratifiedKFold(in_sale_period, control.n_folds)
     for train_indices, test_indices in skf:
@@ -788,7 +830,8 @@ def fit_and_test_models(df_all, control):
                     fold_number, control.sale_date, training_days)
                 continue
 
-            print 'model samples sizes: train %d test %d' % (len(df_train_model), len(df_test_model))
+            print 'model samples sizes: training_days %d train %d test %d' % (
+                training_days, len(df_train_model), len(df_test_model))
 
             # fit and test ach model
             for model_name, model in control.models.iteritems():
@@ -813,6 +856,7 @@ def fit_and_test_models(df_all, control):
                     if verbose:
                         for line in report.global_fold_lines(global_key, global_result):
                             print line
+                    median_errors.accumulate(global_key, global_result)
 
                 # determine results for each zip code in test data
                 for zip_code in unique_zip_codes(df_test_model):
@@ -830,8 +874,9 @@ def fit_and_test_models(df_all, control):
                         if verbose:
                             for line in report.zip_fold_lines(zip_code_key, zip_code_result):
                                 print line
+                        median_errors.accumulate(zip_code_key, zip_code_result)
     print 'num sale samples across all folds:', num_sale_samples
-    return all_results
+    return all_results, median_errors.dataframe()
 
 
 def print_results(all_results, control):
@@ -862,7 +907,7 @@ def main(argv):
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
 
-    all_results = fit_and_test_models(df_loaded, control)
+    all_results, median_errors = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
     if False:
@@ -872,11 +917,17 @@ def main(argv):
         print_results(all_results, control)
 
     # write result
-    print 'writing results to', control.path_out
+    print 'writing results to', control.path_out_dict
     result = {'control': control,  # control.predictors orders the x values
               'all_results': all_results}
-    f = open(control.path_out, 'wb')
+    f = open(control.path_out_dict, 'wb')
     pickle.dump(result, f)
+    f.close()
+
+    print 'writing results to', control.path_out_df
+    f = open(control.path_out_df, 'wb')
+    pickle.dump(median_errors, f)
+    f.close()
 
     print 'ok'
 
