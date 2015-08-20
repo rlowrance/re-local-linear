@@ -1,12 +1,15 @@
 '''create files contains estimated generalization errors for model
 
-invocation: python ege_week.py YYYY-MM-DD
+invocation: python ege_week.py YYYY-MM-DD [--testing]
  YYYY-MM-DD mid-point of week; anayze -3 to +3 days
+ --testing  if supplied, only subset of cases are run and output file has -test in its name
+
+INPUT FILE
+ WORKING/transactions-subset2.pickle
 
 OUTPUT FILES
  WORKING/ege_week-YYYY-MM-DD-MODEL-df[-test].pickle   dataframe with median errors
  WORKING/ege_week-YYYY-MM-DD-MODEL-dict-test].pickle  dict with importance of features, actuals, estimates
-
 '''
 
 import collections
@@ -26,6 +29,7 @@ from Bunch import Bunch
 from DataframeAppender import DataframeAppender
 from directory import directory
 from Logger import Logger
+import parse_command_line
 
 
 def usage():
@@ -35,7 +39,7 @@ def usage():
 def make_control(argv):
     'Return control Bunch'''
 
-    if len(argv) != 2:
+    if len(argv) == 1 or len(argv) > 3:
         usage()
         sys.exit(1)
 
@@ -81,7 +85,7 @@ def make_control(argv):
         'effective.age2': None}
 
     debug = False
-    testing = True
+    testing = parse_command_line.has_arg(argv, '--testing')
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
