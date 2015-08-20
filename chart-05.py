@@ -30,6 +30,10 @@ def print_help():
 def make_control(argv):
     # return a Bunch
 
+    if len(argv) != 2:
+        print_help()
+        sys.exit(1)
+
     random.seed(123456)
     base_name = argv[0].split('.')[0]
     now = datetime.datetime.now()
