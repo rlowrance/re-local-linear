@@ -739,7 +739,7 @@ class AccumulateMedianErrors():
                          len(model_result['actuals'])])
 
     def dataframe(self):
-        return self.dfa
+        return self.dfa.result()
 
 
 def squeeze(result, verbose=False):
