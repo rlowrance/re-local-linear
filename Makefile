@@ -112,10 +112,11 @@ ALL += $(WORKING)/ege_to_dataframe-2009-02-16.pickle
 ALL += $(WORKING)/ege_summary_by_scope-2009-02-16.pickle
 ALL += $(WORKING)/chart-05.txt
 
-
 ALL += $(WORKING)/ege_week-2009-02-15-df-test.pickle
 ALL += $(WORKING)/ege_week-2009-02-15-dict-test.pickle
 
+ALL += $(WORKING)/ege_week-2009-02-15-df.pickle
+ALL += $(WORKING)/ege_week-2009-02-15-dict.pickle
 
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 #ALL += $(WORKING)/record-counts.tex
@@ -126,10 +127,17 @@ include $(WORKING)/python-dependencies.makefile
 
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
-# ege files; STEM is usually the sale_date
+# ege_week files; STEM is .
 
-$(WORKING)/ege_week-2009-02-15-%-test.pickle: ege_week.py $(WORKING)/transactions-subset2.pickle
+$(WORKING)/ege_week-2009-02-15-df-test%pickle $(WORKING)/ege_week-2009-02-15-dict-test%pickle: \
+	ege_week.py $(WORKING)/transactions-subset2.pickle
+	$(PYTHON) ege_week.py 2009-02-15 --testing
+
+$(WORKING)/ege_week-2009-02-15-df%pickle $(WORKING)/ege_week-2009-02-15-dict%pickle: \
+	ege_week.py $(WORKING)/transactions-subset2.pickle
 	$(PYTHON) ege_week.py 2009-02-15
+
+# ege_date files; STEM is the sale_date
 
 $(WORKING)/ege_summary_by_scope-%.pickle: ege_summary_by_scope.py $(WORKING)/ege_to_dataframe-%.pickle
 	$(PYTHON) ege_summary_by_scope.py $*
