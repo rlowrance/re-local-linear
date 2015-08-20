@@ -338,7 +338,7 @@ class Ols(object):
     def reporter(self):
         return ReportOls
 
-    def run(self, train, test, control):
+    def run(self, df_train, df_test, df_next, control):
         '''fit on training data and test
 
         ARGS
@@ -354,9 +354,9 @@ class Ols(object):
         verbose = False
 
         def variant(x_mode, y_mode):
-            train_x = x(x_mode, train, control)
-            test_x = x(x_mode, test, control)
-            train_y = y(y_mode, train, control)
+            train_x = x(x_mode, df_train, control)
+            test_x = x(x_mode, df_test, control)
+            train_y = y(y_mode, df_train, control)
             model = self.Model_Constructor(fit_intercept=True,
                                            normalize=True,
                                            copy_X=True)
@@ -368,7 +368,9 @@ class Ols(object):
                 'coef': fitted_model.coef_,
                 'intercept_': fitted_model.intercept_,
                 'estimates': demode(estimates, y_mode),
-                'actuals': y('linear', test, control)
+                'actuals': y('linear', df_test, control),
+                'estimates_next': fitted_model.predict(x(x_mode, df_next, control)),
+                'actuals_next': y(y_mode, df_next, control),
             }
             # check results
             if verbose:
@@ -522,7 +524,7 @@ class Rf(object):
     def reporter(self):
         return ReportRf
 
-    def run(self, train, test, control):
+    def run(self, df_train, df_test, df_next, control):
         '''fit on train, test on test, return dict of variants
 
         The variants are defined by the number of trees in the forest
@@ -532,9 +534,9 @@ class Rf(object):
         verbose = False
 
         def variant(n_trees):
-            train_x = x(None, train, control)  # no transformation
-            test_x = x(None, test, control)
-            train_y = y(None, train, control)
+            train_x = x(None, df_train, control)  # no transformation
+            test_x = x(None, df_test, control)
+            train_y = y(None, df_train, control)
             model = self.Model_Constructor(n_estimators=n_trees,
                                            random_state=control.random_seed)
             fitted_model = model.fit(train_x, train_y)
@@ -543,7 +545,10 @@ class Rf(object):
             result = {
                 'feature_importances': fitted_model.feature_importances_,
                 'estimates': estimates,
-                'actuals': y('None', test, control)}
+                'actuals': y('None', df_test, control),
+                'estimates_next': fitted_model.predict(x(None, df_next, control)),
+                'actuals_next': y('None', df_next, control),
+            }
             if verbose:
                 for k, v in result.iteritems():
                     print k, v
@@ -570,7 +575,7 @@ def within(sale_date, training_days, df):
 
 
 def is_between(df, first_date, last_date):
-    'return df containing subset of samples between the two dates'
+    'return mask for df containing subset of samples between the two dates'
     df_date = df['sale.python_date']
     return (df_date >= first_date) & (df_date <= last_date)
 
@@ -795,6 +800,14 @@ def fit_and_test_models(df_all, control):
     print 'num sale samples', num_sale_samples
     assert num_sale_samples >= control.n_folds, 'unable to form folds'
 
+    # test data is the next week after the last training sample
+    df_next = add_age(df_all[is_between(df_all,
+                                        last_sale_date + datetime.timedelta(1),
+                                        last_sale_date + datetime.timedelta(7))],
+                      sale_date=last_sale_date + datetime.timedelta(7))
+
+    print 'df_next has %d samples' % len(df_next)
+
     all_results = {}
     median_errors = AccumulateMedianErrors()
     fold_number = -1
@@ -845,8 +858,9 @@ def fit_and_test_models(df_all, control):
                     print 'skipping global zero length: #test %d #train %d' % (
                         len(df_test_model), len(df_train_model))
                 elif 'global' in control.scopes:
-                    global_result = model.run(train=df_train_model,
-                                              test=df_test_model,
+                    global_result = model.run(df_train=df_train_model,
+                                              df_test=df_test_model,
+                                              df_next=df_next,
                                               control=control)
                     global_key = make_key(scope='global')
                     all_results[global_key] = squeeze(global_result)
