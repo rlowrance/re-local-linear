@@ -135,7 +135,7 @@ $(WORKING)/ege_week-2009-02-15-df-test%pickle $(WORKING)/ege_week-2009-02-15-dic
 
 $(WORKING)/ege_week-2009-02-15-df%pickle $(WORKING)/ege_week-2009-02-15-dict%pickle: \
 	ege_week.py $(WORKING)/transactions-subset2.pickle
-	$(PYTHON) ege_week.py 2009-02-15
+	$(PYTHON) ege_week.py 2009-02-15 --global
 
 # ege_date files; STEM is the sale_date
 
