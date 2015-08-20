@@ -879,15 +879,16 @@ def fit_and_test_models(df_all, control):
                             print 'skipping zip zero length: zip %d #test %d #train %d' % (
                                 zip_code, len(df_test_model_zip), len(df_train_model_zip))
                         else:
-                            zip_code_result = model.run(train=df_train_model_zip,
-                                                        test=df_test_model_zip,
+                            zip_code_result = model.run(df_train=df_train_model_zip,
+                                                        df_test=df_test_model_zip,
+                                                        df_next=df_next,
                                                         control=control)
                             zip_code_key = make_key(scope=('zip', zip_code))
                             all_results[zip_code_key] = squeeze(zip_code_result)
-                        if verbose:
-                            for line in report.zip_fold_lines(zip_code_key, zip_code_result):
-                                print line
-                        median_errors.accumulate(zip_code_key, zip_code_result)
+                            if verbose:
+                                for line in report.zip_fold_lines(zip_code_key, zip_code_result):
+                                    print line
+                            median_errors.accumulate(zip_code_key, zip_code_result)
     print 'num sale samples across all folds:', num_sale_samples
     return all_results, median_errors.dataframe()
 
