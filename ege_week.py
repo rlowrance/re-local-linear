@@ -1,9 +1,5 @@
 '''create files contains estimated generalization errors for model
 
-invocation: python ege_week.py YYYY-MM-DD [--test]
- YYYY-MM-DD mid-point of week; anayze -3 to +3 days
- --test     if supplied, only subset of cases are run and output file has -test in its name
-
 INPUT FILE
  WORKING/transactions-subset2.pickle
 
@@ -33,13 +29,19 @@ import parse_command_line
 
 
 def usage():
-    print 'usage: python ege_week.py YYYY-MM-DD'
+    print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
+    print ' YYYY-MM-DD mid-point of week; anayze -3 to +3 days'
+    print ' --test     if supplied, only subset of cases are run and output file has -test in its name'
+    print ' --global   if supplied, restrict scope to only global models'
 
 
 def make_control(argv):
     'Return control Bunch'''
 
-    if len(argv) == 1 or len(argv) > 3:
+    print 'argv'
+    pprint(argv)
+
+    if not (len(argv) in (2, 3, 4)):
         usage()
         sys.exit(1)
 
@@ -86,25 +88,17 @@ def make_control(argv):
 
     debug = False
     test = parse_command_line.has_arg(argv, '--test')
+    out_tuple = (directory('working'), base_name, sale_date, '-test' if test else '')
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        path_out_df='%s%s-%s-df%s.pickle' % (
-            directory('working'),
-            base_name,
-            sale_date,
-            '-test' if test else ''),
-        path_out_dict='%s%s-%s-dict%s.pickle' % (
-            directory('working'),
-            base_name,
-            sale_date,
-            '-test' if test else ''),
-        arg_date=sale_date,
+        path_out_df='%s%s-%s-df%s.pickle' % out_tuple,
+        path_out_dict='%s%s-%s-dict%s.pickle' % out_tuple,
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
         models={'rf': Rf(), 'ols': Ols()},
-        scopes=['global', 'zip'],
+        scopes=('global',) if parse_command_line.has_arg(argv, '--global') else ('global', 'zip'),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
         n_folds=10,
         predictors=predictors,
@@ -850,7 +844,7 @@ def fit_and_test_models(df_all, control):
                 if len(df_test_model) == 0 or len(df_train_model) == 0:
                     print 'skipping global zero length: #test %d #train %d' % (
                         len(df_test_model), len(df_train_model))
-                else:
+                elif 'global' in control.scopes:
                     global_result = model.run(train=df_train_model,
                                               test=df_test_model,
                                               control=control)
@@ -863,18 +857,19 @@ def fit_and_test_models(df_all, control):
                     median_errors.accumulate(global_key, global_result)
 
                 # determine results for each zip code in test data
-                for zip_code in unique_zip_codes(df_test_model):
-                    df_train_model_zip = zip_codes(df_train_model, zip_code)
-                    df_test_model_zip = zip_codes(df_test_model, zip_code)
-                    if len(df_train_model_zip) == 0 or len(df_test_model_zip) == 0:
-                        print 'skipping zip zero length: zip %d #test %d #train %d' % (
-                            zip_code, len(df_test_model_zip), len(df_train_model_zip))
-                    else:
-                        zip_code_result = model.run(train=df_train_model_zip,
-                                                    test=df_test_model_zip,
-                                                    control=control)
-                        zip_code_key = make_key(scope=('zip', zip_code))
-                        all_results[zip_code_key] = squeeze(zip_code_result)
+                if 'zip' in control.scopes:
+                    for zip_code in unique_zip_codes(df_test_model):
+                        df_train_model_zip = zip_codes(df_train_model, zip_code)
+                        df_test_model_zip = zip_codes(df_test_model, zip_code)
+                        if len(df_train_model_zip) == 0 or len(df_test_model_zip) == 0:
+                            print 'skipping zip zero length: zip %d #test %d #train %d' % (
+                                zip_code, len(df_test_model_zip), len(df_train_model_zip))
+                        else:
+                            zip_code_result = model.run(train=df_train_model_zip,
+                                                        test=df_test_model_zip,
+                                                        control=control)
+                            zip_code_key = make_key(scope=('zip', zip_code))
+                            all_results[zip_code_key] = squeeze(zip_code_result)
                         if verbose:
                             for line in report.zip_fold_lines(zip_code_key, zip_code_result):
                                 print line
