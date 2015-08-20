@@ -36,6 +36,9 @@ class DataframeAppender(object):
             d[self.names[i]] = s(lst[i], self.dtypes[i])
         return pd.DataFrame(d)
 
+    def __str__(self):
+        return 'DataframeAppender: ' + str(self.df)
+
 
 if __name__ == '__main__':
     if False:  # avoid pyflakes warning
