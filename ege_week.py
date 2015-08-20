@@ -1,8 +1,8 @@
 '''create files contains estimated generalization errors for model
 
-invocation: python ege_week.py YYYY-MM-DD [--testing]
+invocation: python ege_week.py YYYY-MM-DD [--test]
  YYYY-MM-DD mid-point of week; anayze -3 to +3 days
- --testing  if supplied, only subset of cases are run and output file has -test in its name
+ --test     if supplied, only subset of cases are run and output file has -test in its name
 
 INPUT FILE
  WORKING/transactions-subset2.pickle
@@ -85,7 +85,7 @@ def make_control(argv):
         'effective.age2': None}
 
     debug = False
-    testing = parse_command_line.has_arg(argv, '--testing')
+    test = parse_command_line.has_arg(argv, '--test')
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
@@ -93,23 +93,23 @@ def make_control(argv):
             directory('working'),
             base_name,
             sale_date,
-            '-test' if testing else ''),
+            '-test' if test else ''),
         path_out_dict='%s%s-%s-dict%s.pickle' % (
             directory('working'),
             base_name,
             sale_date,
-            '-test' if testing else ''),
+            '-test' if test else ''),
         arg_date=sale_date,
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
         models={'rf': Rf(), 'ols': Ols()},
         scopes=['global', 'zip'],
-        training_days=(7, 14, 21) if testing else range(7, 366, 7),
+        training_days=(7, 14, 21) if test else range(7, 366, 7),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
-        testing=testing,
+        test=test,
         debug=debug)
     return b
 
@@ -556,7 +556,7 @@ class Rf(object):
             return result
 
         all_variants = {}
-        for n_trees in (10, 100) if control.testing else (10, 100, 300, 1000):
+        for n_trees in (10, 100) if control.test else (10, 100, 300, 1000):
             variant_value = variant(n_trees)
             key = ('n_trees', n_trees)
             all_variants[key] = variant_value
