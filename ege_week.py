@@ -555,7 +555,8 @@ class Rf(object):
             return result
 
         all_variants = {}
-        for n_trees in (10, 100) if control.test else (10, 100, 300, 1000):
+        all_n_trees = (10, 100, 200, 300, 400, 500, 600, 700, 800, 900,  1000)
+        for n_trees in (10, 100) if control.test else all_n_trees:
             variant_value = variant(n_trees)
             key = ('n_trees', n_trees)
             all_variants[key] = variant_value
