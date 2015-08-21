@@ -19,3 +19,6 @@ class Report(object):
             f.write(line)
             f.write('\n')
         f.close()
+
+    def lines(self):
+        return self.lines
