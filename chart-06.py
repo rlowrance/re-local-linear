@@ -5,7 +5,8 @@ INPUT FILES
  WORKING/ege_week-YYYY-MM-DD-dict[-test].pickle
 
 OUTPUT FILES
- WORKING/chart-06[-test].txt
+ WORKING/chart-06-each-fold[-test].txt
+ WORKING/chart-06-across-folds[-test].txt
 '''
 
 import cPickle as pickle
@@ -59,9 +60,15 @@ def make_control(argv):
                   'ege_week',
                   sale_date,
                   '-test' if test else ''),
-              path_out='%s%s%s.txt' % (
+              path_out_report_each_fold='%s%s%s%s.txt' % (
                   directory('working'),
                   base_name,
+                  '-each-fold',
+                  '-test' if test else ''),
+              path_out_report_across_folds='%s%s%s%s.txt' % (
+                  directory('working'),
+                  base_name,
+                  '-across-folds',
                   '-test' if test else ''),
               sale_date=sale_date,
               test=test)
@@ -99,9 +106,18 @@ def analyze(df, all_results, control):
                 variants.add(kk)
         return sorted(list(variants))
 
+    def make_fold_numbers(all_results):
+        fold_numbers = set()
+        for k in all_results.keys():
+            fold_numbers.add(k[0])
+        return sorted(list(fold_numbers))
+
     def make_scopes(all_results):
         'return iterable'
-        raise RuntimeError('implement me')
+        scopes = set()
+        for k in all_results.keys():
+            scopes.add(k[4])
+        return sorted(list(scopes))
 
     def get_result(all_results, fold_number, training_days, model, variant, scope):
         'return train and test absolute and relative errors'
@@ -113,7 +129,10 @@ def analyze(df, all_results, control):
         return result
 
     def errors(result):
-        def abs_rel(actual, estimate):
+        def abs_rel(actual_raw, estimate_raw):
+            # assume small values are in log domain and transform them to natural units
+            actual = np.exp(actual_raw) if np.all(actual_raw < 20.0) else actual_raw
+            estimate = np.exp(estimate_raw) if np.all(estimate_raw < 20.0) else estimate_raw
             abs_error = np.abs(actual - estimate)
             rel_error = abs_error / actual
             return np.median(abs_error), np.median(rel_error)
@@ -132,35 +151,75 @@ def analyze(df, all_results, control):
             print model, variant
             raise RuntimeError('model: ' + str(model))
 
-    pdb.set_trace()
-    report = Report()
-    report.append('Chart 06')
-    report.append('sale_date: %s' % control.sale_date)
+    def median_across_folds(accumulated):
+        'return median values'
+        uz = zip(*accumulated)
+        now_list = zip(*uz[0])
+        next_list = zip(*uz[1])
+        mae_now_list = now_list[0]
+        mre_now_list = now_list[1]
+        mae_next_list = next_list[0]
+        mre_next_list = next_list[1]
+        return median(mae_now_list), median(mre_now_list), median(mae_next_list), median(mre_next_list)
 
-    format_header = '%s %3s %11s %6s %7s %7s %7s %7s'
-    format_detail = '%d %3d %11s %6s %7.0f %7.2f %7.0f %7.2f'
+    report_each_fold = Report()
+    report_across_folds = Report()
 
-    report.append(format_header % (
+    report_each_fold.append('Chart 06: Accuracy by Fold')
+    report_across_folds.append('Chart 06: Accuracy Across Folds')
+
+    def append_both(line):
+        report_each_fold.append(line)
+        report_across_folds.append(line)
+
+    append_both('sale_date: %s' % control.sale_date)
+
+    folds_format_header = '%11s %6s %3s %1s %7s %7s %7s %7s'
+    folds_format_detail = '%11s %6s %3d %1s %7.0f %7.2f %7.0f %7.2f'
+
+    append_both(folds_format_header % (
         ' ', ' ', ' ', ' ', 'now', 'now', 'next', 'next'))
-    report.append(format_header % (
-        'f', 'td', 'model_id', 'scope', 'med abs', 'med rel', 'med abs', 'med rel'))
+    append_both(folds_format_header % (
+        'model_id', 'scope', 'td', 'f', 'med abs', 'med rel', 'med abs', 'med rel'))
 
-    for fold_number in xrange(10):
-        for training_days in make_training_days(all_results):
-            for model in make_model_names(all_results):
-                for variant in make_variants(all_results, model):
-                    for scope in ('global',) if control.test else make_scopes(df):
+    pdb.set_trace()
+    for model in make_model_names(all_results):
+        for variant in make_variants(all_results, model):
+            for scope in make_scopes(all_results):
+                if control.test and scope != 'global':
+                    continue
+                for training_days in make_training_days(all_results):
+                    accumulated_errors = []
+                    for fold_number in make_fold_numbers(all_results):
                         result = get_result(all_results, fold_number, training_days, model, variant, scope)
                         e = errors(result)
+                        accumulated_errors.append(e)
                         now_mae, now_mre = e[0]
                         next_mae, next_mre = e[1]
-                        report.append(format_detail % (
-                            fold_number, training_days, make_model_id(model, variant),
+                        report_each_fold.append(folds_format_detail % (
+                            make_model_id(model, variant),
                             scope,
-                            now_mae, now_mre,
-                            next_mae, next_mre))
+                            training_days,
+                            str(fold_number),
+                            now_mae,
+                            now_mre,
+                            next_mae,
+                            next_mre))
+                    # write summary line across folds
+                    now_mae, now_mre, next_mae, next_mre = median_across_folds(accumulated_errors)
+                    line = folds_format_detail % (
+                        make_model_id(model, variant),
+                        scope,
+                        training_days,
+                        'M',  # median across folds
+                        now_mae,
+                        now_mre,
+                        next_mae,
+                        next_mre)
+                    append_both(line)
+
     pdb.set_trace()
-    return report
+    return report_each_fold, report_across_folds
 
 
 def main(argv):
@@ -177,9 +236,9 @@ def main(argv):
     all_results = loaded['all_results']
     f.close
 
-    report = analyze(df, all_results, control)
-    pdb.set_trace()
-    report.write(control.path_out)
+    report_each_fold, report_across_folds = analyze(df, all_results, control)
+    report_each_fold.write(control.path_out_report_each_fold)
+    report_across_folds.write(control.path_out_report_across_folds)
 
     print control
     if control.test:
