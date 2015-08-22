@@ -7,6 +7,7 @@ INPUT FILES
 OUTPUT FILES
  WORKING/chart-06-each-fold[-test].txt
  WORKING/chart-06-across-folds[-test].txt
+ WORKING/chart-07-best-across-folds[-test].txt
 '''
 
 import cPickle as pickle
@@ -69,6 +70,11 @@ def make_control(argv):
                   directory('working'),
                   base_name,
                   '-across-folds',
+                  '-test' if test else ''),
+              path_out_report_best_across_folds='%s%s%s%s.txt' % (
+                  directory('working'),
+                  base_name,
+                  '-best-across-folds',
                   '-test' if test else ''),
               sale_date=sale_date,
               test=test)
@@ -177,30 +183,52 @@ def analyze(df, all_results, control):
             print model, variant
             raise RuntimeError('model: ' + str(model))
 
+    def print_best_results(report, across):
+        'append lines with lowest now and next errors'
+        now_best = 1e307
+        next_best = 1e307
+        for k, v in across.iteritems():
+            now_mae, next_mae, line = v
+            if now_mae < now_best:
+                now_best = now_mae
+                now_line = line
+            if next_mae < next_best:
+                next_best = next_mae
+                next_line = line
+        report_best_across_folds.append(now_line)
+        report_best_across_folds.append(next_line)
+
     report_each_fold = Report()
     report_across_folds = Report()
+    report_best_across_folds = Report()
 
     report_each_fold.append('Chart 06: Accuracy by Fold')
     report_across_folds.append('Chart 06: Accuracy Across Folds')
+    report_best_across_folds.append('Chart 06: Best model_id, scope, td Across Folds')
 
-    def append_both(line):
+    def append_12(line):
         report_each_fold.append(line)
         report_across_folds.append(line)
 
-    append_both('sale_date: %s' % control.sale_date)
+    def append_123(line):
+        append_12(line)
+        report_best_across_folds.append(line)
+
+    append_123('sale_date: %s' % control.sale_date)
 
     folds_format_header = '%11s %6s %3s %1s %7s %7s %7s %7s'
     folds_format_detail = '%11s %6s %3d %1s %7.0f %7.2f %7.0f %7.2f'
 
-    append_both(folds_format_header % (
+    append_123(folds_format_header % (
         ' ', ' ', ' ', ' ', 'now', 'now', 'next', 'next'))
-    append_both(folds_format_header % (
+    append_123(folds_format_header % (
         'model_id', 'scope', 'td', 'f', 'med abs', 'med rel', 'med abs', 'med rel'))
 
     pdb.set_trace()
     for model in make_model_names(all_results):
         for variant in make_variants(all_results, model):
             for scope in make_scopes(all_results):
+                across = {}
                 if control.test and scope != 'global':
                     continue
                 for training_days in make_training_days(all_results):
@@ -222,8 +250,9 @@ def analyze(df, all_results, control):
                             next_mre))
                     # write summary line across folds
                     now_mae, now_mre, next_mae, next_mre = median_across_folds(accumulated_results)
+                    model_id = make_model_id(model, variant)
                     line = folds_format_detail % (
-                        make_model_id(model, variant),
+                        model_id,
                         scope,
                         training_days,
                         'M',  # median across folds
@@ -231,10 +260,14 @@ def analyze(df, all_results, control):
                         now_mre,
                         next_mae,
                         next_mre)
-                    append_both(line)
-
+                    append_12(line)
+                    across[training_days] = (now_mae, next_mae, line)
+            # finished model, variant, scope
+            # find best models by examining across
+            print_best_results(report_across_folds, across)
     pdb.set_trace()
-    return report_each_fold, report_across_folds
+
+    return report_each_fold, report_across_folds, report_best_across_folds
 
 
 def main(argv):
@@ -251,9 +284,10 @@ def main(argv):
     all_results = loaded['all_results']
     f.close
 
-    report_each_fold, report_across_folds = analyze(df, all_results, control)
+    report_each_fold, report_across_folds, report_best_across_folds = analyze(df, all_results, control)
     report_each_fold.write(control.path_out_report_each_fold)
     report_across_folds.write(control.path_out_report_across_folds)
+    report_best_across_folds.write(control.path_out_report_best_across_folds)
 
     print control
     if control.test:
