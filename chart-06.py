@@ -128,19 +128,45 @@ def analyze(df, all_results, control):
         result = variant_results[variant]
         return result
 
+    def abs_rel_errors(actual_raw_list, estimate_raw_list):
+        '''return absolute and relative errors, after possibly transforming from log to natural units
+
+        ARGS TYPES
+        either python list or np.array
+        '''
+        assert len(actual_raw_list) == len(estimate_raw_list)
+        # convert possibly lists to np.arrays
+        actual_raw = np.array(actual_raw_list, dtype=np.float64)
+        estimate_raw = np.array(estimate_raw_list, dtype=np.float64)
+        # assume small values are in log domain and transform them to natural units
+        actual = np.exp(actual_raw) if np.all(actual_raw < 20.0) else actual_raw
+        estimate = np.exp(estimate_raw) if np.all(estimate_raw < 20.0) else estimate_raw
+        # now values are in natural units stored in np.arrays
+        abs_error = np.abs(actual - estimate)
+        rel_error = abs_error / actual
+        return np.median(abs_error), np.median(rel_error)
+
     def errors(result):
-        def abs_rel(actual_raw, estimate_raw):
-            # assume small values are in log domain and transform them to natural units
-            actual = np.exp(actual_raw) if np.all(actual_raw < 20.0) else actual_raw
-            estimate = np.exp(estimate_raw) if np.all(estimate_raw < 20.0) else estimate_raw
-            abs_error = np.abs(actual - estimate)
-            rel_error = abs_error / actual
-            return np.median(abs_error), np.median(rel_error)
 
         def ae(suffix):
-            return abs_rel(result['actuals' + suffix], result['estimates' + suffix])
+            return abs_rel_errors(result['actuals' + suffix], result['estimates' + suffix])
 
         return ae(''), ae('_next')
+
+    def median_across_folds(accumulated):
+        'return medians: mae now, mre now, mae next, mre next'
+        actuals_now = []
+        estimates_now = []
+        actuals_next = []
+        estimates_next = []
+        for result in accumulated:
+            actuals_now.extend(result['actuals'])
+            estimates_now.extend(result['estimates'])
+            actuals_next.extend(result['actuals_next'])
+            estimates_next.extend(result['estimates_next'])
+        errors_now = abs_rel_errors(actuals_now, estimates_now)
+        errors_next = abs_rel_errors(actuals_next, estimates_next)
+        return errors_now[0], errors_now[1], errors_next[0], errors_next[1]
 
     def make_model_id(model, variant):
         if model == 'ols':
@@ -150,17 +176,6 @@ def analyze(df, all_results, control):
         else:
             print model, variant
             raise RuntimeError('model: ' + str(model))
-
-    def median_across_folds(accumulated):
-        'return median values'
-        uz = zip(*accumulated)
-        now_list = zip(*uz[0])
-        next_list = zip(*uz[1])
-        mae_now_list = now_list[0]
-        mre_now_list = now_list[1]
-        mae_next_list = next_list[0]
-        mre_next_list = next_list[1]
-        return median(mae_now_list), median(mre_now_list), median(mae_next_list), median(mre_next_list)
 
     report_each_fold = Report()
     report_across_folds = Report()
@@ -189,11 +204,11 @@ def analyze(df, all_results, control):
                 if control.test and scope != 'global':
                     continue
                 for training_days in make_training_days(all_results):
-                    accumulated_errors = []
+                    accumulated_results = []
                     for fold_number in make_fold_numbers(all_results):
                         result = get_result(all_results, fold_number, training_days, model, variant, scope)
+                        accumulated_results.append(result)
                         e = errors(result)
-                        accumulated_errors.append(e)
                         now_mae, now_mre = e[0]
                         next_mae, next_mre = e[1]
                         report_each_fold.append(folds_format_detail % (
@@ -206,7 +221,7 @@ def analyze(df, all_results, control):
                             next_mae,
                             next_mre))
                     # write summary line across folds
-                    now_mae, now_mre, next_mae, next_mre = median_across_folds(accumulated_errors)
+                    now_mae, now_mre, next_mae, next_mre = median_across_folds(accumulated_results)
                     line = folds_format_detail % (
                         make_model_id(model, variant),
                         scope,
