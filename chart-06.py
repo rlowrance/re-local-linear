@@ -76,6 +76,11 @@ def make_control(argv):
                   base_name,
                   '-best-across-folds',
                   '-test' if test else ''),
+              path_out_report_analysis_best='%s%s%s%s.txt' % (
+                  directory('working'),
+                  base_name,
+                  '-analysis_best',
+                  '-test' if test else ''),
               sale_date=sale_date,
               test=test)
 
@@ -184,27 +189,64 @@ def analyze(df, all_results, control):
             raise RuntimeError('model: ' + str(model))
 
     def print_best_results(report, across):
-        'append lines with lowest now and next errors'
+        'append lines with lowest now and next errors; return info from best lines'
         now_best = 1e307
         next_best = 1e307
         for k, v in across.iteritems():
-            now_mae, next_mae, line = v
+            now_mae, next_mae, line, model_id, scope = v
             if now_mae < now_best:
                 now_best = now_mae
                 now_line = line
+                selected_now = now_mae
+                selected_next = next_mae
+                selected_model_id = model_id
+                selected_scope = scope
             if next_mae < next_best:
                 next_best = next_mae
                 next_line = line
         report_best_across_folds.append(now_line)
         report_best_across_folds.append(next_line)
+        return selected_model_id, selected_scope, selected_now, selected_next, next_best
+
+    def print_analysis_best(report, analysis_best):
+        'determine errors and regret from using best model'
+
+        format_header2 = '%18s %13s %6s %9s %9s'
+        format_header4 = '%11s %6s %6s %6s %6s %9s %9s'
+        format_detail = '%11s %6s %6.0f %6.0f %6.0f %9.3f %9.3f'
+
+        report.append(format_header2 % (
+            ' ', '  selected  ', 'actual', 'regret', 'drift'))
+        report.append(format_header2 % (
+            ' ', '   as best   ', 'best', '(actual', '(selected'))
+        report.append(format_header4 % (
+            ' ', ' ', 'error', 'error', 'error', 'best/', 'next/'))
+        report.append(format_header4 % (
+            'model_id', 'scope', 'now', 'next', 'next', 'selected)', 'now)'))
+        keys = analysis_best.keys()
+        for k in sorted(keys):
+            model_id, scope = k
+            v = analysis_best[(model_id, scope)]
+            selected_now, selected_next, next_best = v
+            report.append(format_detail % (
+                model_id,
+                scope,
+                selected_now,
+                selected_next,
+                next_best,
+                selected_next / next_best,
+                selected_next / selected_now,
+            ))
 
     report_each_fold = Report()
     report_across_folds = Report()
     report_best_across_folds = Report()
+    report_analysis_best = Report()
 
     report_each_fold.append('Chart 06: Accuracy by Fold')
     report_across_folds.append('Chart 06: Accuracy Across Folds')
     report_best_across_folds.append('Chart 06: Best model_id, scope, td Across Folds')
+    report_analysis_best.append('Chart 06: Analysis of Best Across Folds')
 
     def append_12(line):
         report_each_fold.append(line)
@@ -225,6 +267,7 @@ def analyze(df, all_results, control):
         'model_id', 'scope', 'td', 'f', 'med abs', 'med rel', 'med abs', 'med rel'))
 
     pdb.set_trace()
+    analysis_best = {}
     for model in make_model_names(all_results):
         for variant in make_variants(all_results, model):
             for scope in make_scopes(all_results):
@@ -261,13 +304,14 @@ def analyze(df, all_results, control):
                         next_mae,
                         next_mre)
                     append_12(line)
-                    across[training_days] = (now_mae, next_mae, line)
+                    across[training_days] = (now_mae, next_mae, line, model_id, scope)
             # finished model, variant, scope
             # find best models by examining across
-            print_best_results(report_across_folds, across)
-    pdb.set_trace()
-
-    return report_each_fold, report_across_folds, report_best_across_folds
+            best_results = print_best_results(report_across_folds, across)
+            model_id, scope, selected_now, selected_next, next_best = best_results
+            analysis_best[(model_id, scope)] = (selected_now, selected_next, next_best)
+    print_analysis_best(report_analysis_best, analysis_best)
+    return report_each_fold, report_across_folds, report_best_across_folds, report_analysis_best
 
 
 def main(argv):
@@ -284,10 +328,12 @@ def main(argv):
     all_results = loaded['all_results']
     f.close
 
-    report_each_fold, report_across_folds, report_best_across_folds = analyze(df, all_results, control)
+    report_each_fold, report_across_folds, report_best_across_folds, report_analysis_best = \
+        analyze(df, all_results, control)
     report_each_fold.write(control.path_out_report_each_fold)
     report_across_folds.write(control.path_out_report_across_folds)
     report_best_across_folds.write(control.path_out_report_best_across_folds)
+    report_analysis_best.write(control.path_out_report_analysis_best)
 
     print control
     if control.test:
