@@ -32,7 +32,6 @@ def usage():
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
     print ' YYYY-MM-DD mid-point of week; anayze -3 to +3 days'
     print ' --test     if supplied, only subset of cases are run and output file has -test in its name'
-    print ' --global   if supplied, restrict scope to only global models'
 
 
 def make_control(argv):
@@ -98,7 +97,7 @@ def make_control(argv):
         random_seed=random_seed,
         sale_date=sale_date,
         models={'rf': Rf(), 'ols': Ols()},
-        scopes=('global',) if parse_command_line.has_arg(argv, '--global') else ('global', 'zip'),
+        scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
         n_folds=10,
         predictors=predictors,
