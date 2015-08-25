@@ -851,7 +851,9 @@ def fit_and_test_models(df_all, control):
                 if len(df_test_model) == 0 or len(df_train_model) == 0:
                     print 'skipping global zero length: #test %d #train %d' % (
                         len(df_test_model), len(df_train_model))
-                elif 'global' in control.scopes:
+                    continue
+
+                if 'global' in control.scopes:
                     global_result = model.run(df_train=df_train_model,
                                               df_test=df_test_model,
                                               df_next=df_next,
