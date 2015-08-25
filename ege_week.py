@@ -32,6 +32,7 @@ def usage():
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
     print ' YYYY-MM-DD mid-point of week; anayze -3 to +3 days'
     print ' --test     if supplied, only subset of cases are run and output file has -test in its name'
+    print ' --zip      if supplied, zip codes scopes are used as well as the global scope'
 
 
 def make_control(argv):
@@ -915,6 +916,7 @@ def main(argv):
     f = open(control.path_in, 'rb')
     df_loaded = pickle.load(f)
     f.close()
+    pdb.set_trace()
 
     df_loaded_copy = df_loaded.copy(deep=True)  # used for debugging
     if False:
