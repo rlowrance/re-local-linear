@@ -99,6 +99,7 @@ def make_control(argv):
         models={'rf': Rf(), 'ols': Ols()},
         scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
+        rf_max_depths=(1, 10) if test else range(1, 1 + len(predictors)),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -392,8 +393,8 @@ class ReportRf(object):
 
     def __init__(self):
         'sale_date days model global fold error abs_error'
-        self.format_global_fold = '%10s %2d %3s %6s f%d trees %4d %6.0f %3.2f'
-        self.format_zip_fold = '%10s %2d %3s %6d f%d trees %4d %6.0f %3.2f'
+        self.format_global_fold = '%10s %2d %3s %6s f%d maxdepth %2d %6.0f %3.2f'
+        self.format_zip_fold = '%10s %2d %3s %6d f%d maxdepth %2d %6.0f %3.2f'
         self.format_global = '%10s %2d %3s %6s  median %6.0f %3.2f'
         self.format_zip = '%10s %2d %3s %6d  median %6.0f %3.2f'
 
@@ -401,15 +402,15 @@ class ReportRf(object):
         fold_number, sale_date, training_days, model_name, scope = key
         assert(scope == 'global')
         for result_key, result_value in result.iteritems():
-            assert result_key[0] == 'n_trees'
-            n_trees = result_key[1]
+            assert result_key[0] == 'max_depth'
+            max_depth = result_key[1]
             median_abs_error, median_rel_abs_error = errors(result_value)
             line = self.format_global_fold % (sale_date,
                                               training_days,
                                               model_name,
                                               scope,
                                               fold_number,
-                                              n_trees,
+                                              max_depth,
                                               median_abs_error,
                                               median_rel_abs_error)
             yield line
@@ -532,11 +533,12 @@ class Rf(object):
         '''
         verbose = False
 
-        def variant(n_trees):
+        def variant(max_depth):
+            'per Andreas Mueller, regularize using max depth of each random tree'
             train_x = x(None, df_train, control)  # no transformation
             test_x = x(None, df_test, control)
             train_y = y(None, df_train, control)
-            model = self.Model_Constructor(n_estimators=n_trees,
+            model = self.Model_Constructor(max_depth=max_depth,
                                            random_state=control.random_seed)
             fitted_model = model.fit(train_x, train_y)
             estimates = fitted_model.predict(test_x)
@@ -554,10 +556,9 @@ class Rf(object):
             return result
 
         all_variants = {}
-        all_n_trees = (10, 100, 200, 300, 400, 500, 600, 700, 800, 900,  1000)
-        for n_trees in (10, 100) if control.test else all_n_trees:
-            variant_value = variant(n_trees)
-            key = ('n_trees', n_trees)
+        for max_depth in control.rf_max_depths:
+            variant_value = variant(max_depth)
+            key = ('max_depth', max_depth)
             all_variants[key] = variant_value
         return all_variants
 
