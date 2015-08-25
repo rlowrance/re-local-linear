@@ -96,7 +96,7 @@ def make_control(argv):
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
-        models={'rf': Rf(), 'ols': Ols()},
+        models={'rf': Rf(), 'lr': Lr()},
         scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
         rf_max_depths=(1, 10) if test else range(1, 1 + len(predictors)),
@@ -173,7 +173,7 @@ def errors(model_result):
     return median_abs_error, median_rel_abs_error
 
 
-class ReportOls(object):
+class ReportLr(object):
     'report generation with y_mode and x_mode in key'
     # NOTE: perhaps reusable for any model with y and x modes
 
@@ -330,13 +330,13 @@ class ReportOls(object):
                            all_results, control)
 
 
-class Ols(object):
-    'Ordinary least squares via sklearn'
+class Lr(object):
+    'linear regression via sklearn'
     def __init__(self):
         self.Model_Constructor = linear_model.LinearRegression
 
     def reporter(self):
-        return ReportOls
+        return ReportLr
 
     def run(self, df_train, df_test, df_next, control):
         '''fit on training data and test
@@ -711,16 +711,16 @@ class AccumulateMedianErrors():
         fold_number, sale_date, training_days, model_name, scope = key
         if model_name == 'rf':
             self._accumulate_rf(fold_number, training_days, scope, result)
-        elif model_name == 'ols':
-            self._accumulate_ols(fold_number, training_days, scope, result)
+        elif model_name == 'lr':
+            self._accumulate_lr(fold_number, training_days, scope, result)
         else:
             raise RuntimeError('bad model_name: ' + str(model_name))
         if verbose:
             print self.dfa.df
 
-    def _accumulate_ols(self, fold_number, training_days, scope, result):
+    def _accumulate_lr(self, fold_number, training_days, scope, result):
         for k, v in result.iteritems():
-            model_id = 'rf ' + str(k[1])[:3] + ' ' + str(k[3])[:3]
+            model_id = 'lr ' + str(k[1])[:3] + ' ' + str(k[3])[:3]
             self._append(fold_number, training_days, model_id, scope, v)
 
     def _accumulate_rf(self, fold_number, training_days, scope, result):
@@ -751,31 +751,24 @@ def squeeze(result, verbose=False):
     def is_np_scalar_float64(x):
         return isinstance(x, np.float64)
 
+    def squeeze_np(value):
+        if is_np_array_float64(value):
+            return np.array(value, dtype=np.float32)
+        elif is_np_scalar_float64(value):
+            return np.float32(value)
+        else:
+            print value
+            raise RuntimeError('unexpected')
+
     if verbose:
         pprint(result)
     assert(isinstance(result, dict))
     new_result = {}
     for k, v in result.iteritems():
-        if isinstance(k, str):
-            # rf result
-            if is_np_array_float64(v):
-                # e.g., actual, estimate, other info in a vector
-                new_result[k] = np.array(v, dtype=np.float32)
-            else:
-                print k, v
-                raise RuntimeError('unexpected')
-        elif isinstance(k, tuple):
+        if isinstance(k, tuple):
             # ols result
-            new_ols_result = {}
-            for ols_key, ols_value in v.iteritems():
-                if is_np_array_float64(ols_value):
-                    new_ols_result[ols_key] = np.array(ols_value, dtype=np.float32)
-                elif is_np_scalar_float64(ols_value):
-                    new_ols_result[ols_key] = np.float32(ols_value)
-                else:
-                    print ols_key, ols_value
-                    raise RuntimeError('unexpected')
-            new_result[k] = new_ols_result
+            new_v = {key: squeeze_np(value) for key, value in v.iteritems()}
+            new_result[k] = new_v
         else:
             # unexpected
             print k, v
