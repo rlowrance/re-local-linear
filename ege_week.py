@@ -99,7 +99,7 @@ def make_control(argv):
         models={'rf': Rf(), 'lr': Lr()},
         scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
-        rf_max_depths=(1, 10) if test else range(1, 1 + len(predictors)),
+        rf_max_depths=(1, 10, 1+len(predictors)) if test else range(1, 1 + len(predictors)),
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -371,6 +371,7 @@ class Lr(object):
                 'actuals': y('linear', df_test, control),
                 'estimates_next': fitted_model.predict(x(x_mode, df_next, control)),
                 'actuals_next': y(y_mode, df_next, control),
+                'n_train': len(train_x),
             }
             # check results
             if verbose:
@@ -549,6 +550,7 @@ class Rf(object):
                 'actuals': y('None', df_test, control),
                 'estimates_next': fitted_model.predict(x(None, df_next, control)),
                 'actuals_next': y('None', df_next, control),
+                'n_train': len(train_x),
             }
             if verbose:
                 for k, v in result.iteritems():
@@ -756,6 +758,8 @@ def squeeze(result, verbose=False):
             return np.array(value, dtype=np.float32)
         elif is_np_scalar_float64(value):
             return np.float32(value)
+        elif isinstance(value, (float, int, long, complex)):
+            return value  # don't convert scalar numbers
         else:
             print value
             raise RuntimeError('unexpected')
@@ -782,7 +786,7 @@ def squeeze(result, verbose=False):
 def fit_and_test_models(df_all, control):
     '''Return all_results dict and median_errors dataframe
     '''
-    verbose = True
+    verbose = False
 
     # determine samples that are in the test period ( = 1 week around the sale_date)
     first_sale_date = control.sale_date - datetime.timedelta(3)
