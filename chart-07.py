@@ -125,15 +125,28 @@ def analyze(all_results, control):
         if model == 'lr':
             return '%2s %3s %3s' % (model, variant[1][:3], variant[3][:3])
         elif model == 'rf':
-            return '%2s %2d   ' % (model, variant[1])
+            return '%2s %2d' % (model, variant[1])
         else:
             assert False, (model, variant)
 
-    def absolute_errors(result):
+    def natural(x):
+        '''if in log units, convert to natural units
+
+        This is a kludgy. An alternative is to examine the variant
+        and determine if the y value is in the log domain
+        '''
+        return np.exp(x) if (np.all((x > 0) & (x < 20))) else x
+
+    def abs_errors(actuals, estimates):
+        return np.abs(natural(actuals) - natural(estimates))
+
+    def now_absolute_errors(result):
         'return np.array 1D'
-        actuals = result['actuals']
-        estimates = result['estimates']
-        return np.abs(actuals - estimates)
+        return abs_errors(result['actuals'], result['estimates'])
+
+    def next_absolute_errors(result):
+        'return np.array 1D'
+        return abs_errors(result['actuals_next'], result['estimates_next'])
 
     def confidence_interval(samples, low_percentile, high_percentile, n_samples):
         '''return a and b such that [a,b] is a 95% confidence interval for the samples
@@ -148,36 +161,77 @@ def analyze(all_results, control):
         high = np.percentile(resamples, high_percentile)
         return low, high
 
+    def summarize_drifts(all_drifts, report):
+        x = np.array(all_drifts)
+        report.append(' ')
+        report.append('Summary of Drifts')
+        report.append('min:    ' + str(np.min(x)))
+        report.append('max:    ' + str(np.max(x)))
+        report.append('mean:   ' + str(np.mean(x)))
+        report.append('median: ' + str(np.median(x)))
+
     # reports setup
     model_scope_td_ci = Report()
     model_scope_td_ci.append('Chart 07: 95% Confidence Intervals')
+    model_scope_td_ci.append('Summarizing Across the Cross Validation Folds')
 
-    format_header = '%10s %6s %3s %23s'
-    format_detail = '%10s %6s %3s %7.0f %7.0f %7.0f'
+    format_header = '%10s %3s %23s %4s %23s %4s %5s'
+    format_detail = '%-10s %3s %7.0f %7.0f %7.0f %4d %7.0f %7.0f %7.0f %4d %5.3f'
 
-    assert control.ci_high - control.ci_low == 95.0
-    model_scope_td_ci.append(format_header % ('', '', '', '[  95 pct ci   ]'))
-    model_scope_td_ci.append(format_header % ('model_id', 'scope', 'td', '   low median  high'))
+    assert control.ci_high - control.ci_low == 95.0, 'change header if you change the ci'
 
-    pdb.set_trace()
-    for model in make_model_names(all_results):
-        for variant in make_variants(all_results, model):
-            for scope in make_scopes(all_results):
+    def print_header():
+        model_scope_td_ci.append('Scope: ' + scope)
+        model_scope_td_ci.append(' ')
+        pct_ci = '[  95 pct ci  ]'
+        model_scope_td_ci.append(format_header % ('', '', pct_ci, '', pct_ci, '', ''))
+        lmh = '   low median  high'
+        model_scope_td_ci.append(format_header % ('model_id', 'td', lmh, 'n', lmh, 'n', 'drift'))
+
+    lines = []  # detail lines
+    all_drifts = []
+    for scope in make_scopes(all_results):
+        print_header()
+        for model in make_model_names(all_results):
+            for variant in make_variants(all_results, model):
                 if control.test and scope != 'global':
                     # skip zip codes if testing
                     continue
                 for training_days in make_training_days(all_results):
-                    accumulated_errors = []
+                    now_accumulated_errors = []
+                    next_accumulated_errors = []
                     for fold_number in make_fold_numbers(all_results):
                         result = get_result(all_results, fold_number, training_days, model, variant, scope)
-                        accumulated_errors.extend(absolute_errors(result))
-                    low, high = confidence_interval(accumulated_errors,
-                                                    control.ci_low,
-                                                    control.ci_high,
-                                                    control.ci_n_samples)
-                    model_scope_td_ci.append(format_detail % (
-                        make_model_id(model, variant), scope, training_days,
-                        low, np.median(accumulated_errors), high))
+                        now_accumulated_errors.extend(now_absolute_errors(result))
+                        next_accumulated_errors.extend(next_absolute_errors(result))
+                    now_low, now_high = confidence_interval(now_accumulated_errors,
+                                                            control.ci_low,
+                                                            control.ci_high,
+                                                            control.ci_n_samples)
+                    next_low, next_high = confidence_interval(next_accumulated_errors,
+                                                              control.ci_low,
+                                                              control.ci_high,
+                                                              control.ci_n_samples)
+                    model_id = make_model_id(model, variant)
+                    median_now = np.median(now_accumulated_errors)
+                    median_next = np.median(next_accumulated_errors)
+                    drift = median_next / median_now
+                    all_drifts.append(drift)
+                    # TODO: fix column header 'low'
+                    line = format_detail % (
+                        model_id, training_days,
+                        now_low, median_now, now_high, len(now_accumulated_errors),
+                        next_low, median_next, next_high, len(next_accumulated_errors),
+                        drift,
+                    )
+                    model_scope_td_ci.append(line)
+                    lines.append((model_id, training_days, median_now, median_next, line))
+
+    summarize_drifts(all_drifts, model_scope_td_ci)
+
+    # TODO: produce reduced report using info in lines
+    pdb.set_trace()
+
     return model_scope_td_ci
 
 
