@@ -4,7 +4,7 @@ INPUT FILE
  WORKING/transactions-subset2.pickle
 
 OUTPUT FILES
- WORKING/ege_week-YYYY-MM-DD-MODEL.pickle  dict with importance of features, actuals, estimates
+ WORKING/ege_week/YYYY-MM-DD-MODEL-TD-HP-FOLD.pickle  dict all_results
 '''
 
 import collections
@@ -27,11 +27,16 @@ from Logger import Logger
 import parse_command_line
 
 
-def usage():
+def usage(msg=None):
+    if msg is not None:
+        print 'invocation error: ' + str(msg)
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
     print ' YYYY-MM-DD       mid-point of week; anayze -3 to +3 days'
-    print ' --model {lr|rf}  which model to run'
     print ' --zip            optional; create zip-based sample as well as global'
+    print ' --model {lr|rf}  which model to run'
+    print ' --td start [stop [step]]  training_days are start, start + step, ...'
+    print ' --hp start [stop [step]]  hyperparameters to model are start, start + step, ...'
+    sys.exit(1)
 
 
 def make_control(argv):
@@ -40,19 +45,14 @@ def make_control(argv):
     print 'argv'
     pprint(argv)
 
-    if not (len(argv) in (2, 3, 4)):
-        usage()
-        sys.exit(1)
+    if len(argv) < 3:
+        usage('missing parameters')
 
     script_name = argv[0]
 
     base_name = script_name.split('.')[0]
     random_seed = 123
     now = datetime.datetime.now()
-    log_file_name = base_name + '.' + now.isoformat('T') + '.log'
-
-    year, month, day = argv[1].split('-')
-    sale_date = datetime.date(int(year), int(month), int(day))
 
     # prior work found that the assessment was not useful
     # just the census and tax roll features
@@ -85,27 +85,65 @@ def make_control(argv):
         'effective.age': None,
         'effective.age2': None}
 
-    debug = False
-    test = False
+    print 'number of predictors', len(predictors)
+
+    # option YYYY-MM-DD (not optional)
+    year, month, day = argv[1].split('-')
+    sale_date = datetime.date(int(year), int(month), int(day))
+
+    # option --model
     model = parse_command_line.get_arg(argv, '--model')
     if model == 'lr':
         models = {'lr': Lr()}
     elif model == 'rf':
         models = {'rf': Rf()}
     else:
-        assert False, model
+        usage('unknown model')
+
+    # option --zip
+    include_zip = parse_command_line.has_arg(argv, '--zip')
+
+    # option --td and --hp
+    def make_range(tag):
+        value = parse_command_line.get_arg(argv, tag)
+        if value is None:
+            usage()
+        if isinstance(value, str):
+            return (int(value),)
+        if isinstance(value, list):
+            if len(value) == 1:
+                return (int(value[0]),)
+            if len(value) == 2:
+                return range(int(value[0], value[1]))
+            if len(value) == 3:
+                return range(int(value[0]), int(value[1]), int(value[2]))
+        usage('incorrect values for ' + tag)
+
+    td_range = make_range('--td')
+    hp_range = make_range('--hp')
+
+    log_file_name = base_name + '.' + now.isoformat('T') + '.log'
+
+    if model == 'lr' and hp_range is not None:
+        usage('do not supply hyperparameters for lr models')
+
+    # FIXME: the out file name will vary over the range of hp and td values
+
+    debug = False
+    test = False
+
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        path_out='%s%s-%s-%s.pickle' % (
-            directory('working'), base_name, sale_date, model),
+        dir_out=directory('working') + base_name + '/',
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
+        base_name=base_name,
         models=models,
-        scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
-        training_days=(7, 14, 21) if test else range(7, 366, 7),
-        rf_max_depths=(1, 10, 1+len(predictors)) if test else range(1, 1 + len(predictors)),
+        scopes=('global', 'zip') if include_zip else ('global',),
+        training_days=td_range,
+        rf_max_depths=hp_range,
         rf_n_estimators=1000,  # number of trees in each random forest
         n_folds=10,
         predictors=predictors,
@@ -806,7 +844,6 @@ def fit_and_test_models(df_all, control):
     assert num_sale_samples >= control.n_folds, 'unable to form folds'
 
     # test data is the next week after the last training sample
-    pdb.set_trace()
     df_next = add_age(df_all[is_between(df_all,
                                         last_sale_date + datetime.timedelta(1),
                                         last_sale_date + datetime.timedelta(7))],
@@ -817,7 +854,6 @@ def fit_and_test_models(df_all, control):
     all_results = {}
     fold_number = -1
     skf = cross_validation.StratifiedKFold(in_sale_period, control.n_folds)
-    pdb.set_trace()
     for train_indices, test_indices in skf:
         fold_number += 1
         # don't create views (just to be careful)
@@ -910,18 +946,41 @@ def print_results(all_results, control):
                              control)
 
 
+def write_all_results(all_results, control):
+    pdb.set_trace()
+    for k, v in all_results.iteritems():
+        k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
+        assert k_scope == 'global', k_scope  # code doesn't work for scope == 'zip'
+        for variant, result in v.iteritems():
+            hp = (
+                '%02d' % variant[1] if k_model_name == 'rf' else
+                '%3s-%3s' % (variant[1][:3], variant[1][:3]) if k_model_name == 'lr' else
+                None
+            )
+            path = control.dir_out + ('%s-%s-%03d-%s-%d.pickle' % (k_sale_date,
+                                                                   k_model_name,
+                                                                   k_training_days,
+                                                                   hp,
+                                                                   k_fold_number,
+                                                                   ))
+            print 'about to write', path
+            f = open(path, 'wb')
+            pickle.dump({'control': control, 'variant': variant, 'result': result}, f)
+            f.close()
+
+
 def main(argv):
     warnings.filterwarnings('error')  # convert warnings to errors
     control = make_control(argv)
 
     sys.stdout = Logger(logfile_path=control.path_log)  # print also write to log file
     print control
+    pdb.set_trace()
 
     # read input
     f = open(control.path_in, 'rb')
     df_loaded = pickle.load(f)
     f.close()
-    pdb.set_trace()
 
     df_loaded_copy = df_loaded.copy(deep=True)  # used for debugging
     if False:
@@ -938,12 +997,7 @@ def main(argv):
         print_results(all_results, control)
 
     # write result
-    print 'writing results to', control.path_out
-    result = {'control': control,  # control.predictors orders the x values
-              'all_results': all_results}
-    f = open(control.path_out, 'wb')
-    pickle.dump(result, f)
-    f.close()
+    write_all_results(all_results, control)
 
     print 'ok'
 
