@@ -4,8 +4,7 @@ INPUT FILE
  WORKING/transactions-subset2.pickle
 
 OUTPUT FILES
- WORKING/ege_week-YYYY-MM-DD-MODEL-df[-test].pickle   dataframe with median errors
- WORKING/ege_week-YYYY-MM-DD-MODEL-dict-test].pickle  dict with importance of features, actuals, estimates
+ WORKING/ege_week-YYYY-MM-DD-MODEL.pickle  dict with importance of features, actuals, estimates
 '''
 
 import collections
@@ -30,9 +29,9 @@ import parse_command_line
 
 def usage():
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
-    print ' YYYY-MM-DD mid-point of week; anayze -3 to +3 days'
-    print ' --test     if supplied, only subset of cases are run and output file has -test in its name'
-    print ' --zip      if supplied, zip codes scopes are used as well as the global scope'
+    print ' YYYY-MM-DD       mid-point of week; anayze -3 to +3 days'
+    print ' --model {lr|rf}  which model to run'
+    print ' --zip            optional; create zip-based sample as well as global'
 
 
 def make_control(argv):
@@ -87,20 +86,27 @@ def make_control(argv):
         'effective.age2': None}
 
     debug = False
-    test = parse_command_line.has_arg(argv, '--test')
-    out_tuple = (directory('working'), base_name, sale_date, '-test' if test else '')
+    test = False
+    model = parse_command_line.get_arg(argv, '--model')
+    if model == 'lr':
+        models = {'lr': Lr()}
+    elif model == 'rf':
+        models = {'rf': Rf()}
+    else:
+        assert False, model
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        path_out_df='%s%s-%s-df%s.pickle' % out_tuple,
-        path_out_dict='%s%s-%s-dict%s.pickle' % out_tuple,
+        path_out='%s%s-%s-%s.pickle' % (
+            directory('working'), base_name, sale_date, model),
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
-        models={'rf': Rf(), 'lr': Lr()},
+        models=models,
         scopes=('global', 'zip') if parse_command_line.has_arg(argv, '--zip') else ('global',),
         training_days=(7, 14, 21) if test else range(7, 366, 7),
         rf_max_depths=(1, 10, 1+len(predictors)) if test else range(1, 1 + len(predictors)),
+        rf_n_estimators=1000,  # number of trees in each random forest
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -541,6 +547,7 @@ class Rf(object):
             test_x = x(None, df_test, control)
             train_y = y(None, df_train, control)
             model = self.Model_Constructor(max_depth=max_depth,
+                                           n_estimators=control.rf_n_estimators,
                                            random_state=control.random_seed)
             fitted_model = model.fit(train_x, train_y)
             estimates = fitted_model.predict(test_x)
@@ -785,8 +792,7 @@ def squeeze(result, verbose=False):
 
 
 def fit_and_test_models(df_all, control):
-    '''Return all_results dict and median_errors dataframe
-    '''
+    'Return all_results dict'
     verbose = False
 
     # determine samples that are in the test period ( = 1 week around the sale_date)
@@ -800,6 +806,7 @@ def fit_and_test_models(df_all, control):
     assert num_sale_samples >= control.n_folds, 'unable to form folds'
 
     # test data is the next week after the last training sample
+    pdb.set_trace()
     df_next = add_age(df_all[is_between(df_all,
                                         last_sale_date + datetime.timedelta(1),
                                         last_sale_date + datetime.timedelta(7))],
@@ -808,9 +815,9 @@ def fit_and_test_models(df_all, control):
     print 'df_next has %d samples' % len(df_next)
 
     all_results = {}
-    median_errors = AccumulateMedianErrors()
     fold_number = -1
     skf = cross_validation.StratifiedKFold(in_sale_period, control.n_folds)
+    pdb.set_trace()
     for train_indices, test_indices in skf:
         fold_number += 1
         # don't create views (just to be careful)
@@ -869,7 +876,6 @@ def fit_and_test_models(df_all, control):
                     if verbose:
                         for line in report.global_fold_lines(global_key, global_result):
                             print line
-                    median_errors.accumulate(global_key, global_result)
 
                 # determine results for each zip code in test data
                 if 'zip' in control.scopes:
@@ -889,9 +895,8 @@ def fit_and_test_models(df_all, control):
                             if verbose:
                                 for line in report.zip_fold_lines(zip_code_key, zip_code_result):
                                     print line
-                            median_errors.accumulate(zip_code_key, zip_code_result)
     print 'num sale samples across all folds:', num_sale_samples
-    return all_results, median_errors.dataframe()
+    return all_results
 
 
 def print_results(all_results, control):
@@ -923,7 +928,7 @@ def main(argv):
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
 
-    all_results, median_errors = fit_and_test_models(df_loaded, control)
+    all_results = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
     if False:
@@ -933,16 +938,11 @@ def main(argv):
         print_results(all_results, control)
 
     # write result
-    print 'writing results to', control.path_out_dict
+    print 'writing results to', control.path_out
     result = {'control': control,  # control.predictors orders the x values
               'all_results': all_results}
-    f = open(control.path_out_dict, 'wb')
+    f = open(control.path_out, 'wb')
     pickle.dump(result, f)
-    f.close()
-
-    print 'writing results to', control.path_out_df
-    f = open(control.path_out_df, 'wb')
-    pickle.dump(median_errors, f)
     f.close()
 
     print 'ok'
