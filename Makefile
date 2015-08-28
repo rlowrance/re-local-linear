@@ -57,66 +57,12 @@ ALL += $(WORKING)/chart-02-ransac-2008-act-ct-median-median.txt
 ALL += $(WORKING)/chart-03.txt
 ALL += $(WORKING)/chart-04.natural.nz-count-all-periods.txt
 
-#ALL += $(WORKING)/ege_date-2004-02-16.pickle
-#ALL += $(WORKING)/ege_date-2004-05-14.pickle
-#ALL += $(WORKING)/ege_date-2004-08-15.pickle
-#ALL += $(WORKING)/ege_date-2004-11-15.pickle
-#
-#ALL += $(WORKING)/ege_to_dataframe-2004-02-16.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2004-05-14.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2004-08-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2004-11-15.pickle
-#
-#ALL += $(WORKING)/ege_date-2005-02-15.pickle
-#ALL += $(WORKING)/ege_date-2005-05-16.pickle
-#ALL += $(WORKING)/ege_date-2005-08-15.pickle
-#ALL += $(WORKING)/ege_date-2005-11-15.pickle
-#
-#ALL += $(WORKING)/ege_to_dataframe-2005-02-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2005-05-16.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2005-08-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2005-11-15.pickle
-#
-#ALL += $(WORKING)/ege_date-2006-02-15.pickle
-#ALL += $(WORKING)/ege_date-2006-05-15.pickle
-#ALL += $(WORKING)/ege_date-2006-08-15.pickle
-#ALL += $(WORKING)/ege_date-2006-11-15.pickle
-#
-#ALL += $(WORKING)/ege_to_dataframe-2006-02-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2006-05-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2006-08-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2006-11-15.pickle
-#
-#ALL += $(WORKING)/ege_date-2007-02-15.pickle
-#ALL += $(WORKING)/ege_date-2007-05-15.pickle
-#ALL += $(WORKING)/ege_date-2007-08-15.pickle
-#ALL += $(WORKING)/ege_date-2007-11-15.pickle
-#
-#ALL += $(WORKING)/ege_to_dataframe-2007-02-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2007-05-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2007-08-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2007-11-15.pickle
-#
-#ALL += $(WORKING)/ege_date-2008-02-15.pickle
-#ALL += $(WORKING)/ege_date-2008-05-15.pickle
-#ALL += $(WORKING)/ege_date-2008-08-15.pickle
-#ALL += $(WORKING)/ege_date-2008-11-14.pickle
-#
-#ALL += $(WORKING)/ege_to_dataframe-2008-02-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2008-05-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2008-08-15.pickle
-#ALL += $(WORKING)/ege_to_dataframe-2008-11-14.pickle
 
 ALL += $(WORKING)/ege_date-2009-02-16.pickle
 ALL += $(WORKING)/ege_to_dataframe-2009-02-16.pickle
 ALL += $(WORKING)/ege_summary_by_scope-2009-02-16.pickle
 ALL += $(WORKING)/chart-05.txt
 
-ALL += $(WORKING)/ege_week-2009-02-15-df-test.pickle
-ALL += $(WORKING)/ege_week-2009-02-15-dict-test.pickle
-
-ALL += $(WORKING)/ege_week-2009-02-15-df.pickle
-ALL += $(WORKING)/ege_week-2009-02-15-dict.pickle
 
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 #ALL += $(WORKING)/record-counts.tex
