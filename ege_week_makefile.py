@@ -36,11 +36,12 @@ def make_hps(model, test):
     assert model == 'rf'
     return (4,) if test else range(1, 27, 1)
 
-test = True
+test = False
+just_2009 = True
 random.seed(123)
 
 if test:
-    systems = ('roy',)
+    systems = ('roy', 'judith')
 else:
     # run 10 jobs on my system and 6 on judiths's
     roy = 10 * ['roy']
@@ -49,27 +50,30 @@ else:
     random.shuffle(systems)
 
 dates = [datetime.date(2009, 02, 15)]
-if not test:
+if not just_2009:
     for year in (2004, 2005, 2006, 2007, 2008):
         for month in (2, 5, 8, 11):
             dates.append(datetime.date(year, month, 15))
 
+system_index = 0
 for date in dates:
     for model in ('lr', 'rf'):
         for training_days in (7,) if test else range(7, 365, 7):
             for hp in make_hps(model, test):
-                for system in systems:
-                    # run 10 jobs on my system and 6 on judith's
-                    make_lines(date, model, training_days, hp, system)
+                make_lines(date, model, training_days, hp, systems[system_index])
+                system_index = (system_index + 1) % len(systems)
 
 for system in systems:
     lines.append(' ')
     lines.append('system_%s: $(%s)' % (system, system))
 
 
-pdb.set_trace()
 f = open('ege_week.makefile', 'w')
 for line in lines:
     f.write(line)
     f.write('\n')
 f.close()
+
+if __name__ == '__main__':
+    if False:
+        pdb.set_trace()
