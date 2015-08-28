@@ -63,6 +63,8 @@ ALL += $(WORKING)/ege_to_dataframe-2009-02-16.pickle
 ALL += $(WORKING)/ege_summary_by_scope-2009-02-16.pickle
 ALL += $(WORKING)/chart-05.txt
 
+ALL += ege_week.makefile
+
 
 #ALL += $(WORKING)/chart-04.rescaled.nz-count-all-periods.txt
 #ALL += $(WORKING)/record-counts.tex
@@ -74,6 +76,9 @@ include $(WORKING)/python-dependencies.makefile
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
 
 # ege_week files; STEM is .
+
+ege_week.makefile: ege_week_makefile.py
+	$(PYTHON) ege_week_makefile.py
 
 $(WORKING)/ege_week-2009-02-15-df-test%pickle $(WORKING)/ege_week-2009-02-15-dict-test%pickle: \
 	ege_week.py $(WORKING)/transactions-subset2.pickle
