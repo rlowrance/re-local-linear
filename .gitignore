@@ -4,3 +4,4 @@
 .ropeproject/
 *.pyc
 chart-*.makefile
+*.makefile
