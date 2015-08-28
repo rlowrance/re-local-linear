@@ -31,11 +31,11 @@ def usage(msg=None):
     if msg is not None:
         print 'invocation error: ' + str(msg)
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
-    print ' YYYY-MM-DD       mid-point of week; anayze -3 to +3 days'
+    print ' YYYY-MM-DD       mid-point of week; analyze -3 to +3 days'
     print ' --zip            optional; create zip-based sample as well as global'
     print ' --model {lr|rf}  which model to run'
-    print ' --td start [stop [step]]  training_days are start, start + step, ...'
-    print ' --hp start [stop [step]]  hyperparameters to model are start, start + step, ...'
+    print ' --td start [stop [step]]  training_days'
+    print ' --hp start [stop [step]]  hyperparameters to model'
     sys.exit(1)
 
 
@@ -107,7 +107,7 @@ def make_control(argv):
     def make_range(tag):
         value = parse_command_line.get_arg(argv, tag)
         if value is None:
-            usage()
+            usage('missing --hp')
         if isinstance(value, str):
             return (int(value),)
         if isinstance(value, list):
@@ -120,7 +120,7 @@ def make_control(argv):
         usage('incorrect values for ' + tag)
 
     td_range = make_range('--td')
-    hp_range = make_range('--hp')
+    hp_range = make_range('--hp') if parse_command_line.has_arg(argv, '--hp') else None
 
     log_file_name = base_name + '.' + now.isoformat('T') + '.log'
 
@@ -947,7 +947,6 @@ def print_results(all_results, control):
 
 
 def write_all_results(all_results, control):
-    pdb.set_trace()
     for k, v in all_results.iteritems():
         k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
         assert k_scope == 'global', k_scope  # code doesn't work for scope == 'zip'
@@ -975,7 +974,6 @@ def main(argv):
 
     sys.stdout = Logger(logfile_path=control.path_log)  # print also write to log file
     print control
-    pdb.set_trace()
 
     # read input
     f = open(control.path_in, 'rb')
