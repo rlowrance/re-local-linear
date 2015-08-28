@@ -1,0 +1,21 @@
+Notes on ipython
+
+* interactive
+  help
+  ?word  help
+  word?
+  TAB    completion
+  C-r    search history; persists across sessions
+  !<command> run shell command
+  reload     deep reload of all modules
+  _i         previous input line
+  __i        second previous input line
+  ___i       third previous input line
+  _ih[n]     previous input line from prompt n
+  _i<n>      global var equal to ih[<n>]
+  _          previous output
+  __         second previous output
+  ___        third previous output
+  _i<n>      previous output n
+  %quickref  reference card
+* command line (see -h)
