@@ -1,18 +1,17 @@
 '''create WORKING/chart-07-*.txt files
 
 INPUT FILES
- WORKING/ege_week-YYYY-MM-DD-dict[-test].pickle
+ WORKING/ege_week/YYYY-MM-DD-MODEL-TD-HPs.pickle containing a dict
 
 OUTPUT FILES
- WORKING/chart-07-each-fold[-test].txt
- WORKING/chart-07-across-folds[-test].txt
- WORKING/chart-07-best-across-folds[-test].txt
+ WORKING/chart-07-model-scope-td-ci.txt
 '''
 
 import cPickle as pickle
 import datetime
 import numpy as np
 import operator
+import os
 import pandas as pd
 from pprint import pprint  # for debugging
 import random
@@ -28,44 +27,48 @@ from Report import Report
 from ege_week import Rf, Lr
 
 
-def print_help():
+def usage(msg=None):
+    if msg is not None:
+        print msg
     print 'usage: python chart-05.py YYYY-MM-DD [--test]'
     print ' YYYY-MM-DD centered date for the test transactions'
-    print ' --test     if present, read test versions of the input files'
+    sys.exit(1)
 
 
 def make_control(argv):
     # return a Bunch
 
     if len(argv) not in (2, 3):
-        print_help()
-        sys.exit(1)
+        usage()
 
     random.seed(123456)
     base_name = argv[0].split('.')[0]
     now = datetime.datetime.now()
     sale_date = argv[1]
-    test = parse_command_line.has_arg(argv, '--test')
+    sale_date_split = sale_date.split('-')
+
+    test = True
+    debug = False
 
     return Bunch(
-        debugging=False,
+        debug=debug,
+        test=test,
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
         path_in=directory('working') + ('ege_summary_by_scope-%s.pickle' % sale_date),
-        path_in_dict='%s%s-%s-dict%s.pickle' % (
-            directory('working'),
-            'ege_week',
-            sale_date,
-            '-test' if test else ''),
+        dir_in=directory('working') + 'ege_week/',
         path_out_report_model_scope_td_ci='%s%s%s%s.txt' % (
             directory('working'),
             base_name,
             '-model-scope-td-ci',
             '-test' if test else ''),
         sale_date=sale_date,
-        test=test,
+        sale_year=sale_date_split[0],
+        sale_month=sale_date_split[1],
+        sale_day=sale_date_split[2],
         ci_n_samples=10000,  # samples to stochastically estimate confidence intervals
         ci_low=2.5,
         ci_high=97.5,
+        n_folds=10,
     )
 
 
@@ -73,53 +76,68 @@ def median(lst):
     return np.median(np.array(lst, dtype=np.float64))
 
 
+class Key(object):
+    'key to all_results dict'
+    def __init__(self, model, training_days, variant, fold_number):
+        self.model = model
+        self.training_days = training_days
+        self.variant = variant
+        self.fold_number = fold_number
+
+    def get_model(self):
+        return self.model
+
+    def get_training_days(self):
+        return self.training_days
+
+    def get_variant(self):
+        return self.variant
+
+    def get_fold_number(self):
+        return self.fold_number
+
+    def __repr__(self):
+        return 'Key(%s, %s, %s, %s)' % (
+            self.model, str(self.variant), str(self.training_days), str(self.fold_number))
+
+    def _get_key(self):
+        return (self.model, self.training_days, self.variant, self.fold_number)
+
+    def __hash__(self):
+        return hash(self._get_key())
+
+    def __eq__(self, other):
+        return (self.model == other.model and
+                self.training_days == other.training_days and
+                self.variant == other.variant and
+                self.fold_number == other.fold_number)
+
+
 def analyze(all_results, control):
     'create Report showing performance of each model in training week and next week'
 
-    def make_training_days(all_results):
-        'return iterable'
-        training_days = set()
-        for k in all_results.keys():
-            training_days.add(k[2])
-        return sorted(list(training_days))
+    def make_training_days():
+        return sorted([k.get_training_days() for k in all_results.keys()])
 
-    def make_model_names(all_results):
-        'return iterable of pairs: (model name, model variant)'
-        model_names = set()
-        for k in all_results.keys():
-            model_names.add(k[3])
-        return sorted(list(model_names))
+    def make_model_names():
+        return sorted([k.get_model() for k in all_results.keys()])
 
-    def make_variants(all_results, model_name):
-        variants = set()
-        for k, v in all_results.iteritems():
-            if k[3] != model_name:
-                continue
-            for kk, vv in v.iteritems():
-                variants.add(kk)
-        return sorted(list(variants))
+    def make_fold_numbers():
+        return sorted([k.get_fold_number() for k in all_results.keys()])
 
-    def make_fold_numbers(all_results):
-        fold_numbers = set()
-        for k in all_results.keys():
-            fold_numbers.add(k[0])
-        return sorted(list(fold_numbers))
+    def make_variants(model_name):
+        return sorted([k.get_variant() for k in all_results.keys()])
 
-    def make_scopes(all_results):
-        'return iterable'
-        scopes = set()
-        for k in all_results.keys():
-            scopes.add(k[4])
-        return sorted(list(scopes))
+    def make_scopes():
+        return ('global',)  # for now; later we plan knn-based scopes
 
-    def get_result(all_results, fold_number, training_days, model, variant, scope):
+    def get_result(all_results, fold_number, training_days, model, variant):
         'return train and test absolute and relative errors'
-        yyyy, mm, dd = control.sale_date.split('-')
-        sale_date = datetime.date(int(yyyy), int(mm), int(dd))
-        key = (fold_number, sale_date, training_days, model, scope)
-        variant_results = all_results[key]
-        result = variant_results[variant]
-        return result
+        key = Key(fold_number=fold_number,
+                  training_days=training_days,
+                  model=model,
+                  variant=variant)
+        return all_results[key]
 
     def make_model_id(model, variant):
         if model == 'lr':
@@ -128,6 +146,10 @@ def analyze(all_results, control):
             return '%2s %2d' % (model, variant[1])
         else:
             assert False, (model, variant)
+
+    def us(lst):
+        'return unique sorted values in lst'
+        return sorted(set(lst))
 
     def natural(x):
         '''if in log units, convert to natural units
@@ -171,11 +193,13 @@ def analyze(all_results, control):
         report.append('median: ' + str(np.median(x)))
 
     # reports setup
+    pdb.set_trace()
     model_scope_td_ci = Report()
     model_scope_td_ci.append('Chart 07: 95% Confidence Intervals')
     model_scope_td_ci.append('Summarizing Across the Cross Validation Folds')
 
-    format_header = '%10s %3s %23s %4s %23s %4s %5s'
+    format_header1 = '%10s %3s %23s %4s %23s %4s %5s'
+    format_header2 = '%10s %3s %7s %7s %7s %4s %7s %7s %7s %4s %5s'
     format_detail = '%-10s %3s %7.0f %7.0f %7.0f %4d %7.0f %7.0f %7.0f %4d %5.3f'
 
     assert control.ci_high - control.ci_low == 95.0, 'change header if you change the ci'
@@ -183,25 +207,34 @@ def analyze(all_results, control):
     def print_header():
         model_scope_td_ci.append('Scope: ' + scope)
         model_scope_td_ci.append(' ')
-        pct_ci = '[  95 pct ci  ]'
-        model_scope_td_ci.append(format_header % ('', '', pct_ci, '', pct_ci, '', ''))
-        lmh = '   low median  high'
-        model_scope_td_ci.append(format_header % ('model_id', 'td', lmh, 'n', lmh, 'n', 'drift'))
+        pct_ci = '[       95 pct ci     ]'
+        model_scope_td_ci.append(format_header1 % ('', '', pct_ci, '', pct_ci, '', ''))
+        model_scope_td_ci.append(format_header2 % (
+            'model_id', 'td', 'low', 'median', 'high', 'n', 'low', 'median', 'high', 'n', 'drift'))
 
     lines = []  # detail lines
     all_drifts = []
-    for scope in make_scopes(all_results):
+    keys = all_results.keys()
+    for scope in make_scopes():
+        assert scope == 'global', scope
         print_header()
-        for model in make_model_names(all_results):
-            for variant in make_variants(all_results, model):
-                if control.test and scope != 'global':
-                    # skip zip codes if testing
-                    continue
-                for training_days in make_training_days(all_results):
+        for model in us([k.get_model()
+                         for k in keys]):
+            for variant in us([k.get_variant()
+                               for k in keys
+                               if k.get_model() == model]):
+                for training_days in us([k.get_training_days()
+                                         for k in keys
+                                         if k.get_model() == model
+                                         if k.get_variant() == variant]):
                     now_accumulated_errors = []
                     next_accumulated_errors = []
-                    for fold_number in make_fold_numbers(all_results):
-                        result = get_result(all_results, fold_number, training_days, model, variant, scope)
+                    for fold_number in us([k.get_fold_number()
+                                           for k in keys
+                                           if k.get_model() == model
+                                           if k.get_variant() == variant
+                                           if k.get_training_days() == training_days]):
+                        result = get_result(all_results, fold_number, training_days, model, variant)
                         now_accumulated_errors.extend(now_absolute_errors(result))
                         next_accumulated_errors.extend(next_absolute_errors(result))
                     now_low, now_high = confidence_interval(now_accumulated_errors,
@@ -217,7 +250,6 @@ def analyze(all_results, control):
                     median_next = np.median(next_accumulated_errors)
                     drift = median_next / median_now
                     all_drifts.append(drift)
-                    # TODO: fix column header 'low'
                     line = format_detail % (
                         model_id, training_days,
                         now_low, median_now, now_high, len(now_accumulated_errors),
@@ -230,9 +262,61 @@ def analyze(all_results, control):
     summarize_drifts(all_drifts, model_scope_td_ci)
 
     # TODO: produce reduced report using info in lines
-    pdb.set_trace()
 
     return model_scope_td_ci
+
+
+def read_all_results(control):
+    def same_date(base_name):
+        split = base_name.split('-')
+        return (split[0] == control.sale_year and
+                split[1] == control.sale_month and
+                split[2] == control.sale_day)
+
+    def file_with_fold_number(base_name, fold_number):
+        return '%s-%d.pickle' % (base_name, fold_number)
+
+    def all_folds_present(base_name, file_names):
+        for fold_number in xrange(control.n_folds):
+            if file_with_fold_number(base_name, fold_number) not in file_names:
+                return False
+        return True
+
+    def get_base_name(file_name):
+        splits = file_name.split('-')
+        return '-'.join(splits[0:-1])
+
+    def get_model(base_name):
+        return file_name.split('-')[3]
+
+    def get_training_days(base_name):
+        return file_name.split('-')[4]
+
+    processed = set()
+    all_results = {}
+    file_names = set(os.listdir(control.dir_in))
+    for file_name in file_names:
+        if control.test and len(all_results) > 1000:
+            break
+        base_name = get_base_name(file_name)  # drop suffix -fold.pickle
+        if base_name not in processed:
+            if same_date(base_name):
+                if all_folds_present(base_name, file_names):
+                    # accumulate into all_results
+                    for fold_number in xrange(0, control.n_folds):
+                        f = open(control.dir_in + file_with_fold_number(base_name, fold_number), 'rb')
+                        pickled = pickle.load(f)
+                        f.close()
+                        variant = pickled['variant']
+                        result = pickled['result']
+                        key = Key(model=get_model(base_name),
+                                  training_days=int(get_training_days(base_name)),
+                                  variant=variant,
+                                  fold_number=fold_number)
+                        all_results[key] = result
+            processed.add(base_name)
+    print '# all_results', len(all_results)
+    return all_results
 
 
 def main(argv):
@@ -240,15 +324,7 @@ def main(argv):
     sys.stdout = Logger(control.path_log)
     print control
 
-#    f = open(control.path_in_df, 'rb')
-#    df = pickle.load(f)
-#    f.close()
-
-    f = open(control.path_in_dict, 'rb')
-    loaded = pickle.load(f)
-    all_results = loaded['all_results']
-    f.close
-
+    all_results = read_all_results(control)
     report1 = analyze(all_results, control)
     report1.write(control.path_out_report_model_scope_td_ci)
 
