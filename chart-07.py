@@ -50,17 +50,23 @@ def make_control(argv):
     test = True
     debug = False
 
+    def make_path_out(*report_names):
+        def make_path(report_name):
+            return '%s%s-%s.txt' % (directory('working'), base_name, report_name)
+
+        d = {report_name: make_path(report_name) for report_name in report_names}
+        return d
+
     return Bunch(
         debug=debug,
         test=test,
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
         path_in=directory('working') + ('ege_summary_by_scope-%s.pickle' % sale_date),
         dir_in=directory('working') + 'ege_week/',
-        path_out_report_model_scope_td_ci='%s%s%s%s.txt' % (
-            directory('working'),
-            base_name,
-            '-model-scope-td-ci',
-            '-test' if test else ''),
+        path_out=make_path_out('model_scope_td_ci',
+                               'model_scope_td_ci_reduced',
+                               'drift_all_models',
+                               'drift_best_models'),
         sale_date=sale_date,
         sale_year=sale_date_split[0],
         sale_month=sale_date_split[1],
@@ -183,20 +189,37 @@ def analyze(all_results, control):
         high = np.percentile(resamples, high_percentile)
         return low, high
 
-    def summarize_drifts(all_drifts, report):
-        x = np.array(all_drifts)
-        report.append(' ')
-        report.append('Summary of Drifts')
-        report.append('min:    ' + str(np.min(x)))
-        report.append('max:    ' + str(np.max(x)))
-        report.append('mean:   ' + str(np.mean(x)))
-        report.append('median: ' + str(np.median(x)))
+    # report on drifts
+    def drifts_report(details, id):
+        'return Report() object'
+        drifts = Report()
+        drifts.append('Chart 07: Summary of Drifts')
+        drifts.append('For ' + id)
+        drifts.append('Drift := Ratio of median error in next period to current period')
+        drifts_header = '%9s %9s'
+        drifts_detail = '%9s %9.2f'
+        drifts.append(drifts_header % ('statistic', 'value'))
+        all_drifts_np = np.array(all_drifts)
+        drifts.append(drifts_detail % ('min', np.min(all_drifts_np)))
+        drifts.append(drifts_detail % ('max', np.max(all_drifts_np)))
+        drifts.append(drifts_detail % ('mean', np.mean(all_drifts_np)))
+        drifts.append(drifts_detail % ('median', np.median(all_drifts_np)))
+        return drifts
 
     # reports setup
     pdb.set_trace()
     model_scope_td_ci = Report()
-    model_scope_td_ci.append('Chart 07: 95% Confidence Intervals')
-    model_scope_td_ci.append('Summarizing Across the Cross Validation Folds')
+    model_scope_td_ci_reduced = Report()
+
+    def append2(line):
+        model_scope_td_ci.append(line)
+        model_scope_td_ci_reduced.append(line)
+
+    append2('Chart 07: 95% Confidence Intervals')
+    append2('Summarizing Across the Cross Validation Folds')
+    model_scope_td_ci_reduced.append('Reduced to Lowest Median Now and Next Errors')
+    if control.test:
+        append2('TESTING: DISCARD')
 
     format_header1 = '%10s %3s %23s %4s %23s %4s %5s'
     format_header2 = '%10s %3s %7s %7s %7s %4s %7s %7s %7s %4s %5s'
@@ -205,14 +228,22 @@ def analyze(all_results, control):
     assert control.ci_high - control.ci_low == 95.0, 'change header if you change the ci'
 
     def print_header():
+        def center(s, width):
+            def pad(extra, s):
+                return (s if extra <= 0 else
+                        s + ' ' if extra == 1 else
+                        pad(extra - 2, ' ' + s + ' '))
+
+            return pad(max(0, width - len(s)), s)
+
         model_scope_td_ci.append('Scope: ' + scope)
         model_scope_td_ci.append(' ')
-        pct_ci = '[       95 pct ci     ]'
-        model_scope_td_ci.append(format_header1 % ('', '', pct_ci, '', pct_ci, '', ''))
+        model_scope_td_ci.append(format_header1 % (
+            '', '', center('now 95 pct ci', 23), '', center('next 95 pct ci', 23), '', ''))
         model_scope_td_ci.append(format_header2 % (
             'model_id', 'td', 'low', 'median', 'high', 'n', 'low', 'median', 'high', 'n', 'drift'))
 
-    lines = []  # detail lines
+    details = []  # detail line info
     all_drifts = []
     keys = all_results.keys()
     for scope in make_scopes():
@@ -250,20 +281,62 @@ def analyze(all_results, control):
                     median_next = np.median(next_accumulated_errors)
                     drift = median_next / median_now
                     all_drifts.append(drift)
-                    line = format_detail % (
+                    detail = (
                         model_id, training_days,
                         now_low, median_now, now_high, len(now_accumulated_errors),
                         next_low, median_next, next_high, len(next_accumulated_errors),
                         drift,
                     )
-                    model_scope_td_ci.append(line)
-                    lines.append((model_id, training_days, median_now, median_next, line))
+                    details.append(detail)
+                    model_scope_td_ci.append(format_detail % detail)
 
-    summarize_drifts(all_drifts, model_scope_td_ci)
+    drift_all_models = drifts_report(all_drifts, 'All Models')
 
-    # TODO: produce reduced report using info in lines
+    # TODO: produce  detail lines across a model_id
+    pdb.set_trace()
+    format_regret = '   %6s %6.2f'
+    reduction_details = []
+    regrets = []
+    for model_id in sorted(set([d[0] for d in details])):
+        # examine the detail lines for the model_id
+        best_now = 1e308
+        best_next = 1e308
+        detail_now = None
+        detail_next = None
+        for detail in [d for d in details if d[0] == model_id]:
+            if detail[3] < best_now:
+                best_now = detail[3]
+                detail_now = detail
+            if detail[7] < best_next:
+                best_next = detail[7]
+                detail_next = detail
+        # print the best now and next model details
+        regret = detail_now[7] / detail_next[7]
+        regrets.append(regret)
+        model_scope_td_ci_reduced.append(format_detail % detail_now)
+        model_scope_td_ci_reduced.append(format_detail % detail_next)
+        model_scope_td_ci_reduced.append(format_regret % ('regret', regret))
+        reduction_details.append(detail_now)
+        reduction_details.append(detail_next)
 
-    return model_scope_td_ci
+    model_scope_td_ci_reduced.append(' ')
+    model_scope_td_ci_reduced.append('Statistics on the regret')
+    x = np.array(regrets)
+    model_scope_td_ci_reduced.append(format_regret % ('min', np.min(x)))
+    model_scope_td_ci_reduced.append(format_regret % ('max', np.max(x)))
+    model_scope_td_ci_reduced.append(format_regret % ('mean', np.mean(x)))
+    model_scope_td_ci_reduced.append(format_regret % ('median', np.median(x)))
+
+    pdb.set_trace()
+    drift_best_models = drifts_report(reduction_details, 'Best Models')
+
+    # TODO: report on regret
+
+    return {'model_scope_td_ci': model_scope_td_ci,
+            'model_scope_td_ci_reduced': model_scope_td_ci_reduced,
+            'drift_all_models': drift_all_models,
+            'drift_best_models': drift_best_models}
+
 
 
 def read_all_results(control):
@@ -325,8 +398,11 @@ def main(argv):
     print control
 
     all_results = read_all_results(control)
-    report1 = analyze(all_results, control)
-    report1.write(control.path_out_report_model_scope_td_ci)
+
+    reports = analyze(all_results, control)
+    pdb.set_trace()
+    for k, v in reports.iteritems():
+        v.write(control.path_out[k])
 
     print control
     if control.test:
