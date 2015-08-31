@@ -4,13 +4,14 @@ INPUT FILE
  WORKING/transactions-subset2.pickle
 
 OUTPUT FILES
- WORKING/ege_week/YYYY-MM-DD-MODEL-TD-HP-FOLD.pickle  dict all_results
+ WORKING/ege_week/YYYY-MM-DD/MODEL-TD/HP-FOLD.pickle  dict all_results
 '''
 
 import collections
 import cPickle as pickle
 import datetime
 import numpy as np
+import os
 import pandas as pd
 import pdb
 from pprint import pprint
@@ -135,7 +136,7 @@ def make_control(argv):
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        dir_out=directory('working') + base_name + '/',
+        dir_out=directory('working') + base_name + '/' + argv[1] + '/',
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
@@ -952,19 +953,18 @@ def write_all_results(all_results, control):
         k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
         assert k_scope == 'global', k_scope  # code doesn't work for scope == 'zip'
         for variant, result in v.iteritems():
+            # possible create directory WORKING/YYYY-MM-DD/MODEL-TD/
+            dir_path = '%s%s-%03d/' % (control.dir_out, k_model_name, k_training_days)
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path)
             hp = (
                 '%02d' % variant[1] if k_model_name == 'rf' else
                 '%3s-%3s' % (variant[1][:3], variant[3][:3]) if k_model_name == 'lr' else
                 None
             )
-            path = control.dir_out + ('%s-%s-%03d-%s-%d.pickle' % (k_sale_date,
-                                                                   k_model_name,
-                                                                   k_training_days,
-                                                                   hp,
-                                                                   k_fold_number,
-                                                                   ))
-            print 'about to write', path
-            f = open(path, 'wb')
+            file_path = '%s%s-%d.pickle' % (dir_path, hp, k_fold_number)
+            print 'about to write', file_path
+            f = open(file_path, 'wb')
             pickle.dump({'control': control, 'variant': variant, 'result': result}, f)
             f.close()
 
