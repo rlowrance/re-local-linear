@@ -886,7 +886,7 @@ def fit_and_test_models(df_all, control):
             print 'model samples sizes: training_days %d train %d test %d' % (
                 training_days, len(df_train_model), len(df_test_model))
 
-            # fit and test ach model
+            # fit and test each model
             for model_name, model in control.models.iteritems():
                 print '%d %s %d %s elapsed %s' % (
                     fold_number, control.sale_date, training_days, model_name,
@@ -908,8 +908,8 @@ def fit_and_test_models(df_all, control):
                                               control=control)
                     global_key = make_key(scope='global')
                     all_results[global_key] = squeeze(global_result)
-                    report = model.reporter()()  # instantiate report class
                     if verbose:
+                        report = model.reporter()()  # instantiate report class
                         for line in report.global_fold_lines(global_key, global_result):
                             print line
 
@@ -947,13 +947,14 @@ def print_results(all_results, control):
 
 
 def write_all_results(all_results, control):
+    pdb.set_trace()
     for k, v in all_results.iteritems():
         k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
         assert k_scope == 'global', k_scope  # code doesn't work for scope == 'zip'
         for variant, result in v.iteritems():
             hp = (
                 '%02d' % variant[1] if k_model_name == 'rf' else
-                '%3s-%3s' % (variant[1][:3], variant[1][:3]) if k_model_name == 'lr' else
+                '%3s-%3s' % (variant[1][:3], variant[3][:3]) if k_model_name == 'lr' else
                 None
             )
             path = control.dir_out + ('%s-%s-%03d-%s-%d.pickle' % (k_sale_date,
@@ -980,7 +981,7 @@ def main(argv):
     df_loaded = pickle.load(f)
     f.close()
 
-    df_loaded_copy = df_loaded.copy(deep=True)  # used for debugging
+    df_loaded_copy = df_loaded.copy(deep=True)  # make sure df_loaded isn't changed
     if False:
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
