@@ -49,14 +49,14 @@ if test:
     systems = ('roy', 'judith', 'hp')
 else:
     # run 10 jobs on my system and 6 on judiths's
-    roy = 10 * ['roy']
+    roy = 8 * ['roy']
     judith = 6 * ['judith']
     hp = 4 * ['hp']
     systems = roy + judith + hp
     random.shuffle(systems)
 
 # define the sale_date
-dates = [datetime.date(2004, 02, 15)]
+dates = [datetime.date(2005, 02, 15)]
 if False:
     for year in (2004, 2005, 2006, 2007, 2008):
         for month in (2, 5, 8, 11):
