@@ -194,6 +194,8 @@ def analyze(all_results, control):
         'return Report() object'
         drifts = Report()
         drifts.append('Chart 07: Summary of Drifts')
+        if control.test:
+            drifts.append('DISCARD: TESTING')
         drifts.append('For ' + id)
         drifts.append('Drift := Ratio of median error in next period to current period')
         drifts_header = '%9s %9s'
