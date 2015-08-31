@@ -76,6 +76,7 @@ def make_control(argv):
         ci_low=2.5,
         ci_high=97.5,
         n_folds=10,
+        now=str(now),
     )
 
 
@@ -149,6 +150,7 @@ def analyze(all_results, control):
         'return Report() object'
         drifts = Report()
         drifts.append('Chart 07: Summary of Drifts')
+        drifts.append(control.now)
         if control.test:
             drifts.append('DISCARD: TESTING')
         drifts.append('For ' + id)
@@ -174,6 +176,7 @@ def analyze(all_results, control):
 
     append2('Chart 07: 95% Confidence Intervals')
     append2('Summarizing Across the Cross Validation Folds')
+    append2(control.now)
     model_scope_td_ci_reduced.append('Reduced to Lowest Median Now and Next Errors')
     if control.test:
         append2('TESTING: DISCARD')
