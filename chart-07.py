@@ -7,6 +7,7 @@ OUTPUT FILES
  WORKING/chart-07-model-scope-td-ci.txt
 '''
 
+import collections
 import cPickle as pickle
 import datetime
 import numpy as np
@@ -62,7 +63,7 @@ def make_control(argv):
         test=test,
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
         path_in=directory('working') + ('ege_summary_by_scope-%s.pickle' % sale_date),
-        dir_in=directory('working') + 'ege_week/',
+        dir_in=directory('working') + 'ege_week/' + argv[1] + '/',
         path_out=make_path_out('model_scope_td_ci',
                                'model_scope_td_ci_reduced',
                                'drift_all_models',
@@ -82,57 +83,11 @@ def median(lst):
     return np.median(np.array(lst, dtype=np.float64))
 
 
-class Key(object):
-    'key to all_results dict'
-    def __init__(self, model, training_days, variant, fold_number):
-        self.model = model
-        self.training_days = training_days
-        self.variant = variant
-        self.fold_number = fold_number
-
-    def get_model(self):
-        return self.model
-
-    def get_training_days(self):
-        return self.training_days
-
-    def get_variant(self):
-        return self.variant
-
-    def get_fold_number(self):
-        return self.fold_number
-
-    def __repr__(self):
-        return 'Key(%s, %s, %s, %s)' % (
-            self.model, str(self.variant), str(self.training_days), str(self.fold_number))
-
-    def _get_key(self):
-        return (self.model, self.training_days, self.variant, self.fold_number)
-
-    def __hash__(self):
-        return hash(self._get_key())
-
-    def __eq__(self, other):
-        return (self.model == other.model and
-                self.training_days == other.training_days and
-                self.variant == other.variant and
-                self.fold_number == other.fold_number)
+Key = collections.namedtuple('Key', 'model training_days, variant, fold_number')
 
 
 def analyze(all_results, control):
     'create Report showing performance of each model in training week and next week'
-
-    def make_training_days():
-        return sorted([k.get_training_days() for k in all_results.keys()])
-
-    def make_model_names():
-        return sorted([k.get_model() for k in all_results.keys()])
-
-    def make_fold_numbers():
-        return sorted([k.get_fold_number() for k in all_results.keys()])
-
-    def make_variants(model_name):
-        return sorted([k.get_variant() for k in all_results.keys()])
 
     def make_scopes():
         return ('global',)  # for now; later we plan knn-based scopes
@@ -251,25 +206,22 @@ def analyze(all_results, control):
     for scope in make_scopes():
         assert scope == 'global', scope
         print_header()
-        for model in us([k.get_model()
+        for model in us([k.model
                          for k in keys]):
-            for variant in us([k.get_variant()
+            for variant in us([k.variant
                                for k in keys
-                               if k.get_model() == model]):
-                if model == 'lr' and variant[1] == 'linear' and variant[3] == 'linear':
-                    print model, variant
-                    pdb.set_trace()
-                for training_days in us([k.get_training_days()
+                               if k.model == model]):
+                for training_days in us([k.training_days
                                          for k in keys
-                                         if k.get_model() == model
-                                         if k.get_variant() == variant]):
+                                         if k.model == model
+                                         if k.variant == variant]):
                     now_accumulated_errors = []
                     next_accumulated_errors = []
-                    for fold_number in us([k.get_fold_number()
+                    for fold_number in us([k.fold_number
                                            for k in keys
-                                           if k.get_model() == model
-                                           if k.get_variant() == variant
-                                           if k.get_training_days() == training_days]):
+                                           if k.model == model
+                                           if k.variant == variant
+                                           if k.training_days == training_days]):
                         result = get_result(all_results, fold_number, training_days, model, variant)
                         now_accumulated_errors.extend(now_absolute_errors(result))
                         next_accumulated_errors.extend(next_absolute_errors(result))
@@ -297,7 +249,7 @@ def analyze(all_results, control):
 
     drift_all_models = drifts_report(all_drifts, 'All Models')
 
-    # TODO: produce  detail lines across a model_id
+    # reduce to best now and next lines
     pdb.set_trace()
     format_regret = '   %6s %6.2f'
     reduction_details = []
@@ -369,38 +321,35 @@ def read_all_results(control):
     def get_training_days(base_name):
         return file_name.split('-')[4]
 
-    processed = set()
-    all_results = {}
-    file_names = set(os.listdir(control.dir_in))
-    for file_name in file_names:
-        if control.test and len(all_results) > 1000:
-            break
-        base_name = get_base_name(file_name)  # drop suffix -FOLD.pickle
-        if base_name not in processed:
-            if same_date(base_name):
-                print file_name
-                if all_folds_present(base_name, file_names):
-                    # accumulate into all_results
-                    for fold_number in xrange(0, control.n_folds):
-                        f = open(control.dir_in + file_with_fold_number(base_name, fold_number), 'rb')
-                        pickled = pickle.load(f)
-                        f.close()
-                        variant = pickled['variant']
-                        result = pickled['result']
-                        print ' ', variant
-                        if get_model(base_name) == 'lr':
-                            pdb.set_trace()
-                        key = Key(model=get_model(base_name),
-                                  training_days=int(get_training_days(base_name)),
-                                  variant=variant,
-                                  fold_number=fold_number)
-                        all_results[key] = result
-                else:
-                    print 'all folds not present', base_name
-            processed.add(base_name)
-    print '# all_results', len(all_results)
-    return all_results
+    def read_file(model, training_days, model_path, file_name):
+        'append new key and value to all_results'
+        splits = file_name.split('-')
+        fold_number = splits[-1].split('.')[0]
+        f = open(model_path + file_name, 'rb')
+        pickled = pickle.load(f)
+        f.close()
+        variant = pickled['variant']
+        result = pickled['result']
+        key = Key(model, training_days, variant, int(fold_number))
+        return key, result
 
+    all_results = {}
+    for dir_name in os.listdir(control.dir_in):
+        if dir_name[0] == '.':
+            continue  # ex: found .DS_Store on Mac OS
+        model, training_days = dir_name.split('-')
+        model_path = control.dir_in + dir_name + '/'
+        for file_name in os.listdir(model_path):
+            if dir_name[0] == '.':
+                continue
+            file_key, file_variant = read_file(model, int(training_days), model_path, file_name)
+            all_results[file_key] = file_variant
+        if control.test:
+            if len(all_results) > 100:
+                break
+
+    print '# all results', len(all_results)
+    return all_results
 
 def main(argv):
     control = make_control(argv)
