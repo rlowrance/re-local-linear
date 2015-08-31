@@ -47,7 +47,7 @@ def make_control(argv):
     sale_date = argv[1]
     sale_date_split = sale_date.split('-')
 
-    test = True
+    test = False
     debug = False
 
     def make_path_out(*report_names):
@@ -256,6 +256,9 @@ def analyze(all_results, control):
             for variant in us([k.get_variant()
                                for k in keys
                                if k.get_model() == model]):
+                if model == 'lr' and variant[1] == 'linear' and variant[3] == 'linear':
+                    print model, variant
+                    pdb.set_trace()
                 for training_days in us([k.get_training_days()
                                          for k in keys
                                          if k.get_model() == model
@@ -340,7 +343,6 @@ def analyze(all_results, control):
             'drift_best_models': drift_best_models}
 
 
-
 def read_all_results(control):
     def same_date(base_name):
         split = base_name.split('-')
@@ -373,9 +375,10 @@ def read_all_results(control):
     for file_name in file_names:
         if control.test and len(all_results) > 1000:
             break
-        base_name = get_base_name(file_name)  # drop suffix -fold.pickle
+        base_name = get_base_name(file_name)  # drop suffix -FOLD.pickle
         if base_name not in processed:
             if same_date(base_name):
+                print file_name
                 if all_folds_present(base_name, file_names):
                     # accumulate into all_results
                     for fold_number in xrange(0, control.n_folds):
@@ -384,11 +387,16 @@ def read_all_results(control):
                         f.close()
                         variant = pickled['variant']
                         result = pickled['result']
+                        print ' ', variant
+                        if get_model(base_name) == 'lr':
+                            pdb.set_trace()
                         key = Key(model=get_model(base_name),
                                   training_days=int(get_training_days(base_name)),
                                   variant=variant,
                                   fold_number=fold_number)
                         all_results[key] = result
+                else:
+                    print 'all folds not present', base_name
             processed.add(base_name)
     print '# all_results', len(all_results)
     return all_results
