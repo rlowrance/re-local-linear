@@ -36,7 +36,7 @@ def usage(msg=None):
     print ' --zip            optional; create zip-based sample as well as global'
     print ' --model {lr|rf}  which model to run'
     print ' --td start [stop [step]]  training_days'
-    print ' --hp start [stop [step]]  hyperparameters to model'
+    print ' --hp start [stop [step]]  required iff model is rf; hyperparameters to model'
     sys.exit(1)
 
 
@@ -122,6 +122,12 @@ def make_control(argv):
 
     td_range = make_range('--td')
     hp_range = make_range('--hp') if parse_command_line.has_arg(argv, '--hp') else None
+    if model == 'lr':
+        if hp_range is not None:
+            usage('do not provide --hp for lr models')
+    else:
+        if hp_range is None:
+            usage('must provide --hp for lr models')
 
     log_file_name = base_name + '.' + now.isoformat('T') + '.log'
 
@@ -948,7 +954,6 @@ def print_results(all_results, control):
 
 
 def write_all_results(all_results, control):
-    pdb.set_trace()
     for k, v in all_results.iteritems():
         k_fold_number, k_sale_date, k_training_days, k_model_name, k_scope = k
         assert k_scope == 'global', k_scope  # code doesn't work for scope == 'zip'
