@@ -56,7 +56,11 @@ else:
     random.shuffle(systems)
 
 # define the sale_date
-dates = [datetime.date(2004, 02, 15)]
+dates = [datetime.date(2005, 02, 15),
+         datetime.date(2006, 02, 15),
+         datetime.date(2007, 02, 15),
+         datetime.date(2008, 02, 15),
+         ]
 if False:
     for year in (2004, 2005, 2006, 2007, 2008):
         for month in (2, 5, 8, 11):
