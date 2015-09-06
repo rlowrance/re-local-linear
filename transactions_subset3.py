@@ -11,6 +11,13 @@ OUTPUT FILES
  WORKING/transactions_subset3.pickle
  WORKING/transactions_subset3_test.pickle
  WORKING/transactions_subset3_train.pickle
+
+NOTES:
+    1. The deeds file has the prior sale info, which we could use
+       to create more transactions. We didn't, because we only have
+       census data from the year 2000, and we use census tract
+       features, so its not effective to go back before sometime
+       in 2002, when the 2000 census data became public.
 '''
 
 import collections
@@ -28,17 +35,19 @@ import zipfile
 
 
 from Bunch import Bunch
-import corelogic
+import deeds
 from directory import directory
 from Logger import Logger
 import parse_command_line
+import parcels
 
 
 def usage(msg=None):
     if msg is not None:
         print msg
-    print 'usage: python transactions_subset3.py [--just TAG]'
-    print ' TAG: run only a portion of the analysis (used during development)'
+    print 'usage  : python transactions_subset3.py [--just TAG] [--test]'
+    print ' TAG   : run only a portion of the analysis (used during development)'
+    print ' --test: run in test mode'
     sys.exit(1)
 
 
@@ -46,8 +55,8 @@ def make_control(argv):
     # return a Bunch
 
     print argv
-    if len(argv) > 3:
-        usage()
+    if len(argv) not in (1, 2, 3, 4):
+        usage('invalid number of arguments')
 
     random.seed(123456)
     base_name = argv[0].split('.')[0]
@@ -56,7 +65,7 @@ def make_control(argv):
     def cache_path(name):
         return directory('working') + base_name + '-cache-' + name + '.pickle'
 
-    test = False
+    test = parse_command_line.has_arg(argv, '--test')
     debug = False
     cache = True
 
@@ -66,10 +75,8 @@ def make_control(argv):
         cache=cache,
         just=parse_command_line.default(argv, '--just', None),
         path_cache_base=directory('working') + base_name + '-cache-',
-        path_cache_census=cache_path('census'),
-        path_cache_deeds=cache_path('deeds'),
-        path_cache_geocoding=cache_path('geocoding'),
-        path_cache_parcels=cache_path('parcels'),
+        path_cache_deeds_g_al=directory('working') + base_name + '-cache-deeds-g-al.csv',
+        path_cache_parcels=directory('working') + base_name + '-cache-parcels.csv',
         path_in_census=directory('input') + 'neighborhood-data/census.csv',
         path_in_geocoding=directory('input') + 'geocoding.tsv',
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
@@ -122,13 +129,13 @@ def read_deeds_g_al(control):
                 print 'exception', sys.exc_info()
                 pdb.set_trace()
                 sys.exit(1)
-            keep = df[corelogic.is_grant_deed(df) & corelogic.is_arms_length(df)]
+            deeds = Deeds(df)
+            mask_keep = deeds.mask_arms_length() & deeds.mask_grant()
+            keep = df[mask_keep]
             return keep
 
     print 'reading deeds g al'
     df1 = read_deed(control.dir_deeds_a, 'CAC06037F1.zip')
-    if False and control.test:
-        return df1
     df2 = read_deed(control.dir_deeds_a, 'CAC06037F2.zip')
     df3 = read_deed(control.dir_deeds_a, 'CAC06037F3.zip')
     df4 = read_deed(control.dir_deeds_a, 'CAC06037F4.zip')
@@ -154,16 +161,14 @@ def read_parcels(control):
         for archive_member_name in z.namelist():
             f = z.open(archive_member_name)
             try:
-                df = pd.read_csv(f, sep='\t', nrows=10000 if control.test else None)
+                nrows = 1000 if control.test else None
+                df = pd.read_csv(f, sep='\t', nrows=nrows)
             except:
                 print 'exception', sys.exc_info()[0]
-            keep = df[corelogic.is_sfr(df)]
-            return keep
+            return df
 
     print 'reading parcels'
     df1 = read_parcels(control.dir_parcels, 'CAC06037F1.zip')
-    if False and control.test:
-        return df1
     df2 = read_parcels(control.dir_parcels, 'CAC06037F2.zip')
     df3 = read_parcels(control.dir_parcels, 'CAC06037F3.zip')
     df4 = read_parcels(control.dir_parcels, 'CAC06037F4.zip')
@@ -175,7 +180,7 @@ def read_parcels(control):
     return df
 
 
-def best_apn(unformatted, formatted):
+def best_apn(df, feature_formatted, feature_unformatted):
     '''return series with best apn
 
     Algo for the R version
@@ -183,6 +188,8 @@ def best_apn(unformatted, formatted):
      otherwise, use formatted, if removing hyphens makes a number
      otherwise, use NaN
     '''
+    formatted = df[feature_formatted]
+    unformatted = df[feature_unformatted]
     if False:
         print unformatted.head()
         print formatted.head()
@@ -194,42 +201,57 @@ def best_apn(unformatted, formatted):
     pdb.set_trace()
 
 
-class Cache(object):
-    def __init__(self, read_from_file, path_cache, control):
-        self._read_from_file = read_from_file
-        self._path_cache = path_cache
-        self._control = control
+def parcels_derived_features(parcels):
+    'return dict containing sets with certain features of the location'
+    def make_tracts(mask):
+        subset = parcels.df[mask]
+        r = set(int(item)
+                for item in subset[Parcels.name_census_tract]
+                if not np.isnan(item))
+        return r
 
-    def load(self):
-        'if cache is present, use it; otherwise read file'
-        try:
-            f = open(self._path_cache, 'rb')
-            data = pickle.load(f)
-            f.close()
-            return data
-        except:
-            data = self._read_from_file(self._control)
-            self.save(data)
-            return data
+    def make_zips(mask):
+        def truncate(zip):
+            'convert possible zip9 to zip5'
+            return zip / 10000.0 if zip > 99999 else zip
 
-    def save(self, data):
-        pdb.set_trace()
-        f = open(self._path_cache, 'wb')
-        pickle.dump(data, f)
-        f.close()
+        subset = parcels.df[mask]
+        r = set(int(truncate(item))
+                for item in subset[Parcels.name_zipcode]
+                if not np.isnan(item))
+        return r
 
-
-def parcels_derived_features(parcels, control):
-    'return dataframes containing features of the census tract and zip code'
     pdb.set_trace()
-    census = parcels['CENSUS TRACT']
-    zipcode = parcels['PROPERTY ZIPCODE']
+    tracts = {
+        "has_commercial": make_tracts(parcels.mask_commercial()),
+        "has_industry": make_tracts(parcels.mask_industry()),
+        "has_park": make_tracts(parcels.mask_park()),
+        "has_retail": make_tracts(parcels.mask_retail()),
+        "has_school": make_tracts(parcels.mask_school()),
+    }
+    zips = {
+        "has_commercial": make_zips(parcels.mask_commercial()),
+        "has_industry": make_zips(parcels.mask_industry()),
+        "has_park": make_zips(parcels.mask_park()),
+        "has_retail": make_zips(parcels.mask_retail()),
+        "has_school": make_zips(parcels.mask_school()),
+    }
+    return {
+        "tracts": tracts,
+        "zips": zips
+    }
 
 
 def just_derived(control):
     pdb.set_trace()
-    parcels = Cache(read_parcels, control.path_cache_parcels, control).load()
-    r = parcels_derived_features(parcels, control)
+    start = time.time()
+    df = pd.read_csv(control.path_cache_parcels,
+                     nrows=10000 if control.test else None)
+    parcels = Parcels(df)
+    print 'read parcels; time: ', time.time() - start
+    print 'parcels shape:', parcels.df.shape
+    r = parcels_derived_features(parcels)
+    return r
 
 
 def just_timing(control):
@@ -279,28 +301,32 @@ def just_timing(control):
     print 'read parcels from csv file, parser=c:', time.time() - start
 
 
+def read_and_write(read_function, write_path, control):
+    start = time.time()
+    df = read_function(control)
+    print 'secs to read:', time.time() - start
+    start = time.time()
+    df.to_csv(write_path)
+    print 'secs to write:', time.time() - start
+
+
 def just_cache(control):
     'consolidate the parcels and deeds files into 2 csv files'
     # goal: speed up testing but don't use in production
-    def read_and_write(read_function, write_path):
-        start = time.time()
-        df = read_function(control)
-        print 'secs to read:', time.time() - start
-        start = time.time()
-        df.to_csv(write_path)
-        print 'secs to write:', time.time() - start
 
     print 'deeds g al'
-    read_and_write(read_deeds_g_al, control.path_cache_base + 'deeds-g-al.csv')
+    read_and_write(read_deeds_g_al, control.path_cache_base + 'deeds-g-al.csv', control)
 
     print 'parcels'
-    read_and_write(read_parcels, control.path_cache_base + 'parcels.csv')
+    read_and_write(read_parcels, control.path_cache_base + 'parcels.csv', control)
 
 
+def just_parcels(control):
+    print 'parcels'
+    read_and_write(read_parcels, control.path_cache_base + 'parcels.csv', control)
 
 
 def main(argv):
-    pdb.set_trace()
     control = make_control(argv)
     sys.stdout = Logger(control.path_log)
     print control
@@ -312,34 +338,38 @@ def main(argv):
             just_timing(control)
         elif control.just == 'cache':
             just_cache(control)
+        elif control.just == 'parcels':
+            just_parcels(control)
         else:
             assert False, control.just
         pdb.set_trace()
         print 'DISCARD RESULTS; JUST', control.just
         sys.exit(1)
 
-    census = read_census(control)
-    deeds_g_al = read_deeds_g_al(control)
-    geocoding = read_geocoding(control)
-    parcels = read_parcels(control)
+    # create dataframes
+    census_df = read_census(control)
+    deeds_g_al_df = read_deeds_g_al(control)
+    geocoding_df = read_geocoding(control)
+    parcels_df = read_parcels(control)
 
-    print 'len census', len(census)
-    print 'led deeds g al', len(deeds_g_al)
-    print 'len geocoding', len(geocoding)
-    print 'len parcels', len(parcels)
+    print 'len census', len(census_df)
+    print 'led deeds g al', len(deeds_g_al_df)
+    print 'len geocoding', len(geocoding_df)
+    print 'len parcels', len(parcels_df)
+    pdb.set_trace()
 
-    tract_features, zip_features = make_geo_features(parcels)
+    tract_features, zip_features = parcels_derived_features(parcels)
+
+    parcels_sfr_df = parcels_df[parcels.mask_sfr(parcels_df)]
 
     # augment parcels and deeds to include a better APN
-    parcels['BestAPN'] = best_apn(parcels['APN UNFORMATTED'], parcels['APN FORMATTED'])
-    deeds_g_al['BestAPN'] = best_apn(deeds_g_al['APN UNFORMATTED'], deeds_g_al['APN FORMATTED'])
+    bestapn = 'BestApn'
+    parcels[bestapn] = best_apn(parcels_df, parcel.apn_formatted, parcel.apn_unformatted)
+    deeds_g_al[bestapn] = best_apn(deeds_g_al_df, deed.apn_formatted, deed.apn_unformatted)
 
-    # create zip-code based features
-
-    # create census-tract based features
 
     # reduce parcels to just SFR parcels
-    parcels_sfr = parcels[corelogic.is_sfr(parcels)]
+    parcels_sfr = parcels[parcels.mask_sfr(parcels)]
 
     # join the files
     pdb.set_trace()
