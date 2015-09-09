@@ -58,15 +58,15 @@ def make_hps(model, test):
     return (4,) if test else range(1, 27, 1)
 
 # define number of cores to use on each system
-if test:
-    systems = ('roy', 'judith', 'hp')
-else:
-    # run 8 jobs on my system and 6 on judiths's and 4 on the hp
-    roy = 8 * ['roy']
-    judith = 6 * ['judith']
-    hp = 4 * ['hp']
-    systems = roy + judith + hp
-    random.shuffle(systems)
+lines.append('# invocations')
+cores = {'hp': 4, 'judith': 6, 'roy': 8}
+pdb.set_trace()
+systems = []
+for k, v in cores.iteritems():
+    systems += v * [k]
+    lines.append('#  make -f ege_week.makefile system_%s -j %d' % (k, v))
+random.shuffle(systems)
+
 
 # define the sale_date
 dates = [datetime.date(2009, 02, 15)]
