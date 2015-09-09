@@ -157,7 +157,7 @@ def make_control(argv):
 
     has_month = parse_command_line.has_arg(argv, '--month')
     dir_out = (directory('working') +
-               'ege-' +
+               'ege_' +
                ('month' if has_month else 'week') +
                '/' + argv[1] + '/'
                )
