@@ -5,6 +5,7 @@ INPUT FILE
 
 OUTPUT FILES
  WORKING/ege_week/YYYY-MM-DD/MODEL-TD/HP-FOLD.pickle  dict all_results
+ WORKING/ege_month/YYYY-MM-DD/MODEL-TD/HP-FOLD.pickle  dict all_results
 '''
 
 import collections
@@ -33,11 +34,57 @@ def usage(msg=None):
         print 'invocation error: ' + str(msg)
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
     print ' YYYY-MM-DD       mid-point of week; analyze -3 to +3 days'
-    print ' --zip            optional; create zip-based sample as well as global'
+    print ' [--month]        test on next month, not next week'
+    print ' [--zip]          create zip-based sample as well as global'
     print ' --model {lr|rf}  which model to run'
-    print ' --td start [stop [step]]  training_days'
-    print ' --hp start [stop [step]]  required iff model is rf; hyperparameters to model'
+    print ' --td <range>     training_days'
+    print ' --hp <range>     required iff model is rf; hyperparameters to model'
+    print 'where'
+    print ' <range> is start [stop [step]], just like Python\'s range(start,stop,step)'
     sys.exit(1)
+
+
+def make_predictors():
+    '''return dict key: column name, value: whether and how to convert to log domain
+
+    Include only features of the census and tax roll, not the assessment,
+    because previous work found that using features derived from the
+    assessment degraded estimated generalization errors.
+
+    NOTE: the columns in the x_array objects passed to scikit learn are in
+    this order. FIXME: that must be wrong, as we return a dictionary
+    '''
+    # earlier version returned a dictionary, which invalided the assumption
+    # about column order in x
+    result = (  # the columns in the x_arrays are in this order
+        ('fraction.owner.occupied', None),
+        ('FIREPLACE.NUMBER', 'log1p'),
+        ('BEDROOMS', 'log1p'),
+        ('BASEMENT.SQUARE.FEET', 'log1p'),
+        ('LAND.SQUARE.FOOTAGE', 'log'),
+        ('zip5.has.industry', None),
+        ('census.tract.has.industry', None),
+        ('census.tract.has.park', None),
+        ('STORIES.NUMBER', 'log1p'),
+        ('census.tract.has.school', None),
+        ('TOTAL.BATHS.CALCULATED', 'log1p'),
+        ('median.household.income', 'log'),  # not log feature in earlier version
+        ('LIVING.SQUARE.FEET', 'log'),
+        ('has.pool', None),
+        ('zip5.has.retail', None),
+        ('census.tract.has.retail', None),
+        ('is.new.construction', None),
+        ('avg.commute', None),
+        ('zip5.has.park', None),
+        ('PARKING.SPACES', 'log1p'),
+        ('zip5.has.school', None),
+        ('TOTAL.ROOMS', 'log1p'),
+        ('age', None),
+        ('age2', None),
+        ('effective.age', None),
+        ('effective.age2', None),
+    )
+    return result
 
 
 def make_control(argv):
@@ -55,37 +102,7 @@ def make_control(argv):
     random_seed = 123
     now = datetime.datetime.now()
 
-    # prior work found that the assessment was not useful
-    # just the census and tax roll features
-    # predictors with transformation to log domain
-    predictors = {  # the columns in the x_arrays are in this order
-        'fraction.owner.occupied': None,
-        'FIREPLACE.NUMBER': 'log1p',
-        'BEDROOMS': 'log1p',
-        'BASEMENT.SQUARE.FEET': 'log1p',
-        'LAND.SQUARE.FOOTAGE': 'log',
-        'zip5.has.industry': None,
-        'census.tract.has.industry': None,
-        'census.tract.has.park': None,
-        'STORIES.NUMBER': 'log1p',
-        'census.tract.has.school': None,
-        'TOTAL.BATHS.CALCULATED': 'log1p',
-        'median.household.income': 'log',  # not log feature in earlier version
-        'LIVING.SQUARE.FEET': 'log',
-        'has.pool': None,
-        'zip5.has.retail': None,
-        'census.tract.has.retail': None,
-        'is.new.construction': None,
-        'avg.commute': None,
-        'zip5.has.park': None,
-        'PARKING.SPACES': 'log1p',
-        'zip5.has.school': None,
-        'TOTAL.ROOMS': 'log1p',
-        'age': None,
-        'age2': None,
-        'effective.age': None,
-        'effective.age2': None}
-
+    predictors = make_predictors()
     print 'number of predictors', len(predictors)
 
     # option YYYY-MM-DD (not optional)
@@ -93,6 +110,8 @@ def make_control(argv):
     sale_date = datetime.date(int(year), int(month), int(day))
 
     # option --model
+    if not parse_command_line.has_arg(argv, '--model'):
+        usage('missing --model')
     model = parse_command_line.get_arg(argv, '--model')
     if model == 'lr':
         models = {'lr': Lr()}
@@ -102,13 +121,15 @@ def make_control(argv):
         usage('unknown model')
 
     # option --zip
-    include_zip = parse_command_line.has_arg(argv, '--zip')
+    has_zip = parse_command_line.has_arg(argv, '--zip')
+    if has_zip:
+        usage('need to test whether the zip logic still works')
 
     # option --td and --hp
     def make_range(tag):
         value = parse_command_line.get_arg(argv, tag)
         if value is None:
-            usage('missing --hp')
+            usage('missing ' + tag)
         if isinstance(value, str):
             return (int(value),)
         if isinstance(value, list):
@@ -134,7 +155,12 @@ def make_control(argv):
     if model == 'lr' and hp_range is not None:
         usage('do not supply hyperparameters for lr models')
 
-    # FIXME: the out file name will vary over the range of hp and td values
+    has_month = parse_command_line.has_arg(argv, '--month')
+    dir_out = (directory('working') +
+               'ege-' +
+               ('month' if has_month else 'week') +
+               '/' + argv[1] + '/'
+               )
 
     debug = False
     test = False
@@ -142,14 +168,15 @@ def make_control(argv):
     b = Bunch(
         path_in=directory('working') + 'transactions-subset2.pickle',
         path_log=directory('log') + log_file_name,
-        dir_out=directory('working') + base_name + '/' + argv[1] + '/',
+        dir_out=dir_out,
         start_time=now,
         random_seed=random_seed,
         sale_date=sale_date,
         base_name=base_name,
         models=models,
-        scopes=('global', 'zip') if include_zip else ('global',),
+        scopes=('global', 'zip') if has_zip else ('global',),
         training_days=td_range,
+        testing_days=30 if has_month else 7,
         rf_max_depths=hp_range,
         rf_n_estimators=1000,  # number of trees in each random forest
         n_folds=10,
@@ -188,7 +215,7 @@ def x(mode, df, control):
                      dtype=np.float64).T
     # build up in transposed form
     index = 0
-    for predictor_name, transformation in control.predictors.iteritems():
+    for predictor_name, transformation in control.predictors:
         v = transform(df[predictor_name].values, mode, transformation)
         array[index] = v
         index += 1
@@ -687,14 +714,14 @@ def zip_codes(df, a_zip_code):
     return result
 
 
-def make_train_model(df, sale_date, training_days):
+def make_train_modelOLD(df, sale_date, training_days):
     'return df of transactions no more than training_days before the sale_date'
     just_before_sale_date = within(sale_date, training_days, df)
     train_model = add_age(df[just_before_sale_date], sale_date)
     return train_model
 
 
-def make_test_model(df, sale_date):
+def make_test_modelOLD(df, sale_date):
     'return df of transactions on the sale_date'
     selected_indices = on_sale_date(sale_date, df)
     test_model = add_age(df[selected_indices], sale_date)
@@ -850,11 +877,11 @@ def fit_and_test_models(df_all, control):
     print 'num sale samples', num_sale_samples
     assert num_sale_samples >= control.n_folds, 'unable to form folds'
 
-    # test data is the next week after the last training sample
+    # test data is the next period after the last training sample
     df_next = add_age(df_all[is_between(df_all,
                                         last_sale_date + datetime.timedelta(1),
-                                        last_sale_date + datetime.timedelta(7))],
-                      sale_date=last_sale_date + datetime.timedelta(7))
+                                        last_sale_date + datetime.timedelta(control.testing_days))],
+                      sale_date=last_sale_date + datetime.timedelta(control.testing_days))
 
     print 'df_next has %d samples' % len(df_next)
 
