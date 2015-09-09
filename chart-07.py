@@ -4,7 +4,7 @@ INPUT FILES
  WORKING/ege_week/YYYY-MM-DD-MODEL-TD-HPs.pickle containing a dict
 
 OUTPUT FILES
- WORKING/chart-07-model-scope-td-ci.txt
+ WORKING/chart-07-model-scope-td-ci*.txt
 '''
 
 import collections
@@ -43,12 +43,13 @@ def make_control(argv):
         usage()
 
     random.seed(123456)
+
     base_name = argv[0].split('.')[0]
     now = datetime.datetime.now()
     sale_date = argv[1]
     sale_date_split = sale_date.split('-')
 
-    test = False
+    test = parse_command_line.has_arg(argv, '--test')
     debug = False
 
     def make_path_out(*report_names):
@@ -64,8 +65,9 @@ def make_control(argv):
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
         path_in=directory('working') + ('ege_summary_by_scope-%s.pickle' % sale_date),
         dir_in=directory('working') + 'ege_week/' + argv[1] + '/',
-        path_out=make_path_out('model_scope_td_ci',
-                               'model_scope_td_ci_reduced',
+        path_out=make_path_out('model_scope_td_ci_abserror',
+                               'model_scope_td_ci_relerror',
+                               'model_scope_td_ci_abserror_reduced',
                                'drift_all_models',
                                'drift_best_models'),
         sale_date=sale_date,
@@ -132,6 +134,17 @@ def analyze(all_results, control):
         'return np.array 1D'
         return abs_errors(result['actuals_next'], result['estimates_next'])
 
+    def rel_errors(actuals, estimates):
+        'relative absolute errors'
+        rel_errors = abs_errors(actuals, estimates) / natural(actuals)
+        return rel_errors
+
+    def now_relative_errors(result):
+        return rel_errors(result['actuals'], result['estimates'])
+
+    def next_relative_errors(result):
+        return rel_errors(result['actuals_next'], result['estimates_next'])
+
     def confidence_interval(samples, low_percentile, high_percentile, n_samples):
         '''return a and b such that [a,b] is a 95% confidence interval for the samples
 
@@ -158,7 +171,7 @@ def analyze(all_results, control):
         drifts_header = '%9s %9s'
         drifts_detail = '%9s %9.2f'
         drifts.append(drifts_header % ('statistic', 'value'))
-        all_drifts_np = np.array(all_drifts)
+        all_drifts_np = np.array(all_abs_drifts)
         drifts.append(drifts_detail % ('min', np.min(all_drifts_np)))
         drifts.append(drifts_detail % ('max', np.max(all_drifts_np)))
         drifts.append(drifts_detail % ('mean', np.mean(all_drifts_np)))
@@ -167,23 +180,28 @@ def analyze(all_results, control):
 
     # reports setup
     pdb.set_trace()
-    model_scope_td_ci = Report()
-    model_scope_td_ci_reduced = Report()
+    model_scope_td_ci_abserror = Report()
+    model_scope_td_ci_relerror = Report()
+    model_scope_td_ci_abserror_reduced = Report()
 
-    def append2(line):
-        model_scope_td_ci.append(line)
-        model_scope_td_ci_reduced.append(line)
+    def append_common(line):
+        model_scope_td_ci_abserror.append(line)
+        model_scope_td_ci_abserror_reduced.append(line)
+        model_scope_td_ci_relerror.append(line)
 
-    append2('Chart 07: 95% Confidence Intervals')
-    append2('Summarizing Across the Cross Validation Folds')
-    append2(control.now)
-    model_scope_td_ci_reduced.append('Reduced to Lowest Median Now and Next Errors')
+    append_common('Chart 07: 95% Confidence Intervals')
+    append_common('Summarizing Across the Cross Validation Folds')
+    model_scope_td_ci_abserror.append('Absolute Errors in Dollars')
+    model_scope_td_ci_relerror.append('Relative Absolute Errors')
+    append_common(control.now)
+    model_scope_td_ci_abserror_reduced.append('Reduced to Lowest Median Now and Next Errors')
     if control.test:
-        append2('TESTING: DISCARD')
+        append_common('TESTING: DISCARD')
 
     format_header1 = '%10s %3s %23s %4s %23s %4s %5s'
     format_header2 = '%10s %3s %7s %7s %7s %4s %7s %7s %7s %4s %5s'
-    format_detail = '%-10s %3s %7.0f %7.0f %7.0f %4d %7.0f %7.0f %7.0f %4d %5.3f'
+    format_detail_abs = '%-10s %3s %7.0f %7.0f %7.0f %4d %7.0f %7.0f %7.0f %4d %5.3f'
+    format_detail_rel = '%-10s %3s %7.3f %7.3f %7.3f %4d %7.3f %7.3f %7.3f %4d %5.3f'
 
     assert control.ci_high - control.ci_low == 95.0, 'change header if you change the ci'
 
@@ -196,15 +214,17 @@ def analyze(all_results, control):
 
             return pad(max(0, width - len(s)), s)
 
-        model_scope_td_ci.append('Scope: ' + scope)
-        model_scope_td_ci.append(' ')
-        model_scope_td_ci.append(format_header1 % (
+        append_common('Scope: ' + scope)
+        append_common(' ')
+        append_common(format_header1 % (
             '', '', center('now 95 pct ci', 23), '', center('next 95 pct ci', 23), '', ''))
-        model_scope_td_ci.append(format_header2 % (
+        append_common(format_header2 % (
             'model_id', 'td', 'low', 'median', 'high', 'n', 'low', 'median', 'high', 'n', 'drift'))
 
-    details = []  # detail line info
-    all_drifts = []
+    details_abs = []  # detail line info
+    details_rel = []
+    all_abs_drifts = []
+    all_rel_drifts = []
     keys = all_results.keys()
     for scope in make_scopes():
         assert scope == 'global', scope
@@ -218,52 +238,80 @@ def analyze(all_results, control):
                                          for k in keys
                                          if k.model == model
                                          if k.variant == variant]):
-                    now_accumulated_errors = []
-                    next_accumulated_errors = []
+                    now_accumulated_abs_errors = []
+                    next_accumulated_abs_errors = []
+                    now_accumulated_rel_errors = []
+                    next_accumulated_rel_errors = []
                     for fold_number in us([k.fold_number
                                            for k in keys
                                            if k.model == model
                                            if k.variant == variant
                                            if k.training_days == training_days]):
+                        if False and model == 'lr' and variant[1] == 'log' and variant[3] == 'linear' and training_days == 7:
+                            pdb.set_trace()
                         result = get_result(all_results, fold_number, training_days, model, variant)
-                        now_accumulated_errors.extend(now_absolute_errors(result))
-                        next_accumulated_errors.extend(next_absolute_errors(result))
-                    now_low, now_high = confidence_interval(now_accumulated_errors,
-                                                            control.ci_low,
-                                                            control.ci_high,
-                                                            control.ci_n_samples)
-                    next_low, next_high = confidence_interval(next_accumulated_errors,
-                                                              control.ci_low,
-                                                              control.ci_high,
-                                                              control.ci_n_samples)
+                        now_accumulated_abs_errors.extend(now_absolute_errors(result))
+                        next_accumulated_abs_errors.extend(next_absolute_errors(result))
+                        now_accumulated_rel_errors.extend(now_relative_errors(result))
+                        next_accumulated_rel_errors.extend(next_relative_errors(result))
+                    if False and model == 'lr' and variant[1] == 'log' and variant[3] == 'linear' and training_days == 7:
+                        pdb.set_trace()
+                    now_abs_low, now_abs_high = confidence_interval(now_accumulated_abs_errors,
+                                                                    control.ci_low,
+                                                                    control.ci_high,
+                                                                    control.ci_n_samples)
+                    next_abs_low, next_abs_high = confidence_interval(next_accumulated_abs_errors,
+                                                                      control.ci_low,
+                                                                      control.ci_high,
+                                                                      control.ci_n_samples)
+                    now_rel_low, now_rel_high = confidence_interval(now_accumulated_rel_errors,
+                                                                    control.ci_low,
+                                                                    control.ci_high,
+                                                                    control.ci_n_samples)
+                    next_rel_low, next_rel_high = confidence_interval(next_accumulated_rel_errors,
+                                                                      control.ci_low,
+                                                                      control.ci_high,
+                                                                      control.ci_n_samples)
                     model_id = make_model_id(model, variant)
-                    median_now = np.median(now_accumulated_errors)
-                    median_next = np.median(next_accumulated_errors)
-                    drift = median_next / median_now
-                    all_drifts.append(drift)
-                    detail = (
+                    median_abs_now = np.median(now_accumulated_abs_errors)
+                    median_abs_next = np.median(next_accumulated_abs_errors)
+                    median_rel_now = np.median(now_accumulated_rel_errors)
+                    median_rel_next = np.median(next_accumulated_rel_errors)
+                    abs_drift = median_abs_next / median_abs_now
+                    all_abs_drifts.append(abs_drift)
+                    rel_drift = median_rel_next / median_rel_now
+                    all_rel_drifts.append(rel_drift)
+                    detail_abs = (
                         model_id, training_days,
-                        now_low, median_now, now_high, len(now_accumulated_errors),
-                        next_low, median_next, next_high, len(next_accumulated_errors),
-                        drift,
+                        now_abs_low, median_abs_now, now_abs_high, len(now_accumulated_abs_errors),
+                        next_abs_low, median_abs_next, next_abs_high, len(next_accumulated_abs_errors),
+                        abs_drift,
                     )
-                    details.append(detail)
-                    model_scope_td_ci.append(format_detail % detail)
+                    details_abs.append(detail_abs)
+                    model_scope_td_ci_abserror.append(format_detail_abs % detail_abs)
+                    detail_rel = (
+                        model_id, training_days,
+                        now_rel_low, median_rel_now, now_rel_high, len(now_accumulated_rel_errors),
+                        next_rel_low, median_rel_next, next_rel_high, len(next_accumulated_rel_errors),
+                        rel_drift,
+                    )
+                    details_rel.append(detail_abs)
+                    model_scope_td_ci_relerror.append(format_detail_rel % detail_rel)
 
-    drift_all_models = drifts_report(all_drifts, 'All Models')
+    drift_all_models = drifts_report(all_abs_drifts, 'All Models')
 
     # reduce to best now and next lines
     pdb.set_trace()
     format_regret = '   %6s %6.2f'
     reduction_details = []
     regrets = []
-    for model_id in sorted(set([d[0] for d in details])):
+    for model_id in sorted(set([d[0] for d in details_abs])):
         # examine the detail lines for the model_id
         best_now = 1e308
         best_next = 1e308
         detail_now = None
         detail_next = None
-        for detail in [d for d in details if d[0] == model_id]:
+        for detail in [d for d in details_abs if d[0] == model_id]:
             if detail[3] < best_now:
                 best_now = detail[3]
                 detail_now = detail
@@ -273,27 +321,28 @@ def analyze(all_results, control):
         # print the best now and next model details
         regret = detail_now[7] / detail_next[7]
         regrets.append(regret)
-        model_scope_td_ci_reduced.append(format_detail % detail_now)
-        model_scope_td_ci_reduced.append(format_detail % detail_next)
-        model_scope_td_ci_reduced.append(format_regret % ('regret', regret))
+        model_scope_td_ci_abserror_reduced.append(format_detail_abs % detail_now)
+        model_scope_td_ci_abserror_reduced.append(format_detail_abs % detail_next)
+        model_scope_td_ci_abserror_reduced.append(format_regret % ('regret', regret))
         reduction_details.append(detail_now)
         reduction_details.append(detail_next)
 
-    model_scope_td_ci_reduced.append(' ')
-    model_scope_td_ci_reduced.append('Statistics on the regret')
+    model_scope_td_ci_abserror_reduced.append(' ')
+    model_scope_td_ci_abserror_reduced.append('Statistics on the regret')
     x = np.array(regrets)
-    model_scope_td_ci_reduced.append(format_regret % ('min', np.min(x)))
-    model_scope_td_ci_reduced.append(format_regret % ('max', np.max(x)))
-    model_scope_td_ci_reduced.append(format_regret % ('mean', np.mean(x)))
-    model_scope_td_ci_reduced.append(format_regret % ('median', np.median(x)))
+    model_scope_td_ci_abserror_reduced.append(format_regret % ('min', np.min(x)))
+    model_scope_td_ci_abserror_reduced.append(format_regret % ('max', np.max(x)))
+    model_scope_td_ci_abserror_reduced.append(format_regret % ('mean', np.mean(x)))
+    model_scope_td_ci_abserror_reduced.append(format_regret % ('median', np.median(x)))
 
     pdb.set_trace()
     drift_best_models = drifts_report(reduction_details, 'Best Models')
 
     # TODO: report on regret
 
-    return {'model_scope_td_ci': model_scope_td_ci,
-            'model_scope_td_ci_reduced': model_scope_td_ci_reduced,
+    return {'model_scope_td_ci_abserror': model_scope_td_ci_abserror,
+            'model_scope_td_ci_relerror': model_scope_td_ci_relerror,
+            'model_scope_td_ci_abserror_reduced': model_scope_td_ci_abserror_reduced,
             'drift_all_models': drift_all_models,
             'drift_best_models': drift_best_models}
 
@@ -343,7 +392,7 @@ def read_all_results(control):
         model, training_days = dir_name.split('-')
         model_path = control.dir_in + dir_name + '/'
         for file_name in os.listdir(model_path):
-            if dir_name[0] == '.':
+            if file_name[0] == '.':
                 continue
             file_key, file_variant = read_file(model, int(training_days), model_path, file_name)
             all_results[file_key] = file_variant
@@ -353,6 +402,7 @@ def read_all_results(control):
 
     print '# all results', len(all_results)
     return all_results
+
 
 def main(argv):
     control = make_control(argv)
