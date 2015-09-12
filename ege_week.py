@@ -87,6 +87,17 @@ def make_predictors():
     return result
 
 
+class CensusAdjacencies(object):
+    def __init__(self):
+        path = directory('working') + 'census_tract_adjacent.pickle'
+        f = open(path, 'rb')
+        self.adjacent = pickle.load(f)
+        f.close()
+
+    def adjacen(self, census_tract):
+        return self.adjacent.get(census_tract, None)
+
+
 def make_control(argv):
     'Return control Bunch'''
 
@@ -117,6 +128,8 @@ def make_control(argv):
         models = {'lr': Lr()}
     elif model == 'rf':
         models = {'rf': Rf()}
+    elif model == 'rfw1':
+        models = {'rfw1': Rfw1()}
     else:
         usage('unknown model')
 
@@ -142,13 +155,16 @@ def make_control(argv):
         usage('incorrect values for ' + tag)
 
     td_range = make_range('--td')
+
     hp_range = make_range('--hp') if parse_command_line.has_arg(argv, '--hp') else None
-    if model == 'lr':
-        if hp_range is not None:
-            usage('do not provide --hp for lr models')
+    if model in ('rf', 'rfw1'):
+        if parse_command_line.has_arg(argv, '--hp'):
+            hp_range = make_range('--hp')
+        else:
+            usage('must supply --hp for rf model')
     else:
-        if hp_range is None:
-            usage('must provide --hp for lr models')
+        if parse_command_line.has_arg(argv, '--hp'):
+            usage('do not supply --hp for %s model' % model)
 
     log_file_name = base_name + '.' + now.isoformat('T') + '.log'
 
@@ -166,7 +182,10 @@ def make_control(argv):
     test = False
 
     b = Bunch(
-        path_in=directory('working') + 'transactions-subset2.pickle',
+        census_adjacencies=CensusAdjacencies(),
+        use_old_input=True,
+        path_in_old=directory('working') + 'transactions-subset2.pickle',
+        path_in=directory('working') + 'transactions-subset3-subset-train.csv',
         path_log=directory('log') + log_file_name,
         dir_out=dir_out,
         start_time=now,
@@ -178,7 +197,7 @@ def make_control(argv):
         training_days=td_range,
         testing_days=30 if has_month else 7,
         rf_max_depths=hp_range,
-        rf_n_estimators=1000,  # number of trees in each random forest
+        rf_n_estimators=10 if test else 1000,  # number of trees in each random forest
         n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
@@ -613,7 +632,7 @@ class Rf(object):
         '''
         verbose = False
 
-        def variant(max_depth):
+        def variant(max_depth):  # class Rf
             'per Andreas Mueller, regularize using max depth of each random tree'
             train_x = x(None, df_train, control)  # no transformation
             test_x = x(None, df_test, control)
@@ -644,6 +663,115 @@ class Rf(object):
             all_variants[key] = variant_value
         return all_variants
 
+
+class Rfw(object):
+    'Random forests via sklearn'
+    def __init__(self):
+        self.Model_Constructor = ensemble.RandomForestRegressor
+
+    def reporter(self):
+        return ReportRf
+
+    def run(self, df_train, df_test, df_next, weights_fn, control):
+        '''fit on train, test on test, return dict of variants
+
+        The variants are defined by the number of trees in the forest
+
+        RETURN dict with key = variant_description
+        '''
+        verbose = False
+
+        def variant(max_depth):  # in class Rfw
+            'fit model to each test sample, as the weights vary by test sample'
+            model = self.Model_Constructor(max_depth=max_depth,
+                                           n_estimators=control.rf_n_estimators,
+                                           random_state=control.random_seed)
+            train_x = x(None, df_train, control)
+            train_y = y(None, df_train, control)
+
+            def fit_and_test(test_df):
+                'fit a model for each sample in the test dataframe'
+                actuals = np.zeros(len(test_df))
+                estimates = np.zeros(len(test_df))
+                feature_importances = []
+                for i in xrange(len(test_df)):
+                    test_row = test_df[i:(i + 1)]  # a dataframe
+                    fitted = model.fit(train_x, train_y, weights_fn(test_row))
+                    test_x = x(None, test_row, control)
+                    estimate = fitted.predict(test_x)
+                    estimates[i] = estimate
+                    feature_importances.append(fitted.feature_importances_)
+                    actual = y(None, test_row, control)[0]
+                    actuals[i] = actual
+                return estimates, feature_importances, actuals
+
+            test_estimates, test_importances, test_actuals = fit_and_test(df_test)
+            pdb.set_trace()
+            next_estimates, _, next_actuals = fit_and_test(df_next)
+            result = {
+                'feature_importances': test_importances,
+                'estimates': test_estimates,
+                'actuals': test_actuals,
+                'estimates_next': next_estimates,
+                'actuals_next': next_actuals,
+                'n_train': len(df_train)
+            }
+            if verbose:
+                for k, v in result.iteritems():
+                    print k, v
+            pdb.set_trace()
+            return result
+
+        pdb.set_trace()
+        all_variants = {}
+        for max_depth in control.rf_max_depths:
+            variant_value = variant(max_depth)
+            key = ('max_depth', max_depth)
+            all_variants[key] = variant_value
+        return all_variants
+
+
+def make_weights_function_1(train_df, census_adjacencies):
+    'return function(df_row) -> vector of weights'
+    train = train_df.copy(deep=True)
+    adjacencies = census_adjacencies.copy()
+    if True:
+        print 'shape train df', train_df.shape
+        print 'len adjacencies', len(adjacencies)
+
+    def weights(df_row):
+        'return vector of weights relative to the training data'
+        r = np.ones(len(train))  # TODO: use the census tracts
+        return r
+
+    return weights
+
+
+class Rfw1(Rfw):
+    'Random forests with samples weighted according to scheme 1'
+    def __init__(self):
+        pass
+
+    def reporter(self):
+        return ReportRf
+
+    @staticmethod
+    def make_always_ones(train_df):
+        def always_ones(df_row):
+            return np.ones(len(train_df))
+        return always_ones
+
+    def run(self, df_train, df_test, df_next, control):
+        '''fit on train, test on test, return dict of variants
+
+        The variants are defined by the number of trees in the forest
+
+        RETURN dict with key = variant_description
+        '''
+        pdb.set_trace()
+        weights_fn = Rfw1.make_always_ones(df_train)
+        rfw = Rfw()
+        return rfw.run(df_train, df_test, df_next, weights_fn, control)
 
 def within(sale_date, training_days, df):
     'return indices of samples up to training_days before the sale_date'
@@ -868,22 +996,24 @@ def fit_and_test_models(df_all, control):
     verbose = False
 
     # determine samples that are in the test period ( = 1 week around the sale_date)
+    pdb.set_trace()
     first_sale_date = control.sale_date - datetime.timedelta(3)
     last_sale_date = control.sale_date + datetime.timedelta(3)
     in_sale_period = is_between(df=df_all,
                                 first_date=first_sale_date,
                                 last_date=last_sale_date)
-    num_sale_samples = sum(in_sale_period)
-    print 'num sale samples', num_sale_samples
-    assert num_sale_samples >= control.n_folds, 'unable to form folds'
+    num_in_sale_period = sum(in_sale_period)
+    print 'sale period is %s to %s with %d samples' % (first_sale_date, last_sale_date, num_in_sale_period)
+    assert num_in_sale_period > 0, 'unable to form folds'
 
     # test data is the next period after the last training sample
-    df_next = add_age(df_all[is_between(df_all,
-                                        last_sale_date + datetime.timedelta(1),
-                                        last_sale_date + datetime.timedelta(control.testing_days))],
-                      sale_date=last_sale_date + datetime.timedelta(control.testing_days))
-
-    print 'df_next has %d samples' % len(df_next)
+    first_next_date = last_sale_date + datetime.timedelta(1)
+    last_next_date = last_sale_date + datetime.timedelta(control.testing_days)
+    in_next_period = is_between(df=df_all,
+                                first_date=first_next_date,
+                                last_date=last_next_date)
+    print 'next period is %s to %s with %d samples' % (first_next_date, last_next_date, sum(in_next_period))
+    df_next = add_age(df_all[in_next_period], control.sale_date + datetime.timedeal(control.testing_days))
 
     all_results = {}
     fold_number = -1
@@ -1002,16 +1132,19 @@ def write_all_results(all_results, control):
 
 
 def main(argv):
-    warnings.filterwarnings('error')  # convert warnings to errors
+    #  warnings.filterwarnings('error')  # convert warnings to errors
     control = make_control(argv)
 
     sys.stdout = Logger(logfile_path=control.path_log)  # print also write to log file
     print control
 
     # read input
-    f = open(control.path_in, 'rb')
-    df_loaded = pickle.load(f)
-    f.close()
+    if control.use_old_input:
+        f = open(control.path_in_old, 'rb')
+        df_loaded = pickle.load(f)
+        f.close()
+    else:
+        df_loaded = pd.read_csv(control.path_in, engine='c')
 
     df_loaded_copy = df_loaded.copy(deep=True)  # make sure df_loaded isn't changed
     if False:
