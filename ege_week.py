@@ -35,13 +35,28 @@ def usage(msg=None):
     print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
     print ' YYYY-MM-DD       mid-point of week; analyze -3 to +3 days'
     print ' [--month]        test on next month, not next week'
-    print ' [--zip]          create zip-based sample as well as global'
     print ' --model {lr|rf}  which model to run'
     print ' --td <range>     training_days'
-    print ' --hp <range>     required iff model is rf; hyperparameters to model'
+    print ' --hpd <range>    required iff model is rf; max_depths to model'
+    print ' --hpw <range>    required iff model is rf; weight functions to model'
+    print ' --hpx <form>     required iff mode is lr; transformation to x'
+    print ' --hpy <form>     required iff mode is lr; transformation to y'
+    print ' --test           optional; if present, program runs in test mode'
     print 'where'
+    print ' <form>  is {|log}+ saying whether the variable is in natural or log units'
     print ' <range> is start [stop [step]], just like Python\'s range(start,stop,step)'
     sys.exit(1)
+
+
+DateRange = collections.namedtuple('DateRange', 'first last')
+
+
+def make_DateRange(mid, half_range):
+    return DateRange(first=mid - datetime.timedelta(half_range),
+                     last=mid + datetime.timedelta(half_range),
+                     )
+
+
 
 
 def make_predictors():
@@ -98,6 +113,25 @@ class CensusAdjacencies(object):
         return self.adjacent.get(census_tract, None)
 
 
+def make_weights_function_1(train_df, census_adjacencies):
+    'return function(df_row) -> vector of weights'
+    train = train_df.copy(deep=True)
+    adjacencies = census_adjacencies.copy()
+    if True:
+        print 'shape train df', train_df.shape
+        print 'len adjacencies', len(adjacencies)
+
+    def weights(df_row):
+        'return vector of weights relative to the training data'
+        r = np.ones(len(train))  # TODO: use the census tracts
+        return r
+
+    return weights
+
+
+ModelId = collections.namedtuple('ModelId', 'name instance training_days hp')
+
+
 def make_control(argv):
     'Return control Bunch'''
 
@@ -105,104 +139,73 @@ def make_control(argv):
     pprint(argv)
 
     if len(argv) < 3:
-        usage('missing parameters')
+        usage('missing invocation options')
 
-    script_name = argv[0]
+    def make_sale_date(s):
+        year, month, day = s.split('-')
+        return datetime.date(int(year), int(month), int(day))
 
-    base_name = script_name.split('.')[0]
+    pcl = parse_command_line.ParseCommandLine(argv)
+    arg = Bunch(
+        base_name=argv[0].split('.')[0],
+        hpd=pcl.get_range('--hpd') if pcl.has_arg('--hpd') else None,
+        hpw=pcl.get_range('--hpw') if pcl.has_arg('--hpw') else None,
+        hpx=pcl.get_range('--hpx') if pcl.has_arg('--hpx') else None,
+        hpy=pcl.get_range('--hpy') if pcl.has_arg('--hpy') else None,
+        model=pcl.get_arg('--model'),
+        month=pcl.has_arg('--month'),
+        sale_date=make_sale_date(argv[1]),
+        td=pcl.get_range('--td'),
+        test=pcl.has_arg('--test'),
+    )
+    print 'arg'
+    print arg
+    # validate combinations of invocation options
+    if arg.model == 'lr':
+        if arg.hpx is None or arg.hpy is None:
+            usage('model lr requires --hpx and --hpy')
+    elif arg.model == 'rf':
+        if arg.hpd is None or arg.hpw is None:
+            usage('model rf requires --hpd and --hpw')
+    else:
+        usage('bad --model: %s' % str(arg.model))
+
     random_seed = 123
     now = datetime.datetime.now()
-
     predictors = make_predictors()
     print 'number of predictors', len(predictors)
-
-    # option YYYY-MM-DD (not optional)
-    year, month, day = argv[1].split('-')
-    sale_date = datetime.date(int(year), int(month), int(day))
-
-    # option --model
-    if not parse_command_line.has_arg(argv, '--model'):
-        usage('missing --model')
-    model = parse_command_line.get_arg(argv, '--model')
-    if model == 'lr':
-        models = {'lr': Lr()}
-    elif model == 'rf':
-        models = {'rf': Rf()}
-    elif model == 'rfw1':
-        models = {'rfw1': Rfw1()}
-    else:
-        usage('unknown model')
-
-    # option --zip
-    has_zip = parse_command_line.has_arg(argv, '--zip')
-    if has_zip:
-        usage('need to test whether the zip logic still works')
-
-    # option --td and --hp
-    def make_range(tag):
-        value = parse_command_line.get_arg(argv, tag)
-        if value is None:
-            usage('missing ' + tag)
-        if isinstance(value, str):
-            return (int(value),)
-        if isinstance(value, list):
-            if len(value) == 1:
-                return (int(value[0]),)
-            if len(value) == 2:
-                return range(int(value[0], value[1]))
-            if len(value) == 3:
-                return range(int(value[0]), int(value[1]), int(value[2]))
-        usage('incorrect values for ' + tag)
-
-    td_range = make_range('--td')
-
-    hp_range = make_range('--hp') if parse_command_line.has_arg(argv, '--hp') else None
-    if model in ('rf', 'rfw1'):
-        if parse_command_line.has_arg(argv, '--hp'):
-            hp_range = make_range('--hp')
-        else:
-            usage('must supply --hp for rf model')
-    else:
-        if parse_command_line.has_arg(argv, '--hp'):
-            usage('do not supply --hp for %s model' % model)
-
-    log_file_name = base_name + '.' + now.isoformat('T') + '.log'
-
-    if model == 'lr' and hp_range is not None:
-        usage('do not supply hyperparameters for lr models')
-
-    has_month = parse_command_line.has_arg(argv, '--month')
+    sale_date_range = make_DateRange(arg.sale_date, 15 if arg.month else 3)
+    log_file_name = arg.base_name + '.' + now.isoformat('T') + '.log'
+    # dir_out: WORKING/ege_[month|week]/<sale_date>/
     dir_out = (directory('working') +
                'ege_' +
-               ('month' if has_month else 'week') +
+               ('month' if arg.month else 'week') +
                '/' + argv[1] + '/'
                )
 
     debug = False
-    test = False
+    test = arg.test
 
     b = Bunch(
+        arg=arg,
         census_adjacencies=CensusAdjacencies(),
-        use_old_input=True,
+        date_column='python.sale_date',
+        debug=debug,
+        dir_out=dir_out,
+        n_folds=2 if test else 10,
+        n_rf_estimators=100 if test else 1000,  # num trees in a random forest
         path_in_old=directory('working') + 'transactions-subset2.pickle',
         path_in=directory('working') + 'transactions-subset3-subset-train.csv',
         path_log=directory('log') + log_file_name,
-        dir_out=dir_out,
-        start_time=now,
-        random_seed=random_seed,
-        sale_date=sale_date,
-        base_name=base_name,
-        models=models,
-        scopes=('global', 'zip') if has_zip else ('global',),
-        training_days=td_range,
-        testing_days=30 if has_month else 7,
-        rf_max_depths=hp_range,
-        rf_n_estimators=10 if test else 1000,  # number of trees in each random forest
-        n_folds=10,
         predictors=predictors,
         price_column='SALE.AMOUNT',
+        random_seed=random_seed,
+        relevant_date_range=DateRange(first=datetime.date(2003, 1, 1), last=datetime.date(2009, 3, 31)),
+        sale_date_range=sale_date_range,
+        start_time=now,
         test=test,
-        debug=debug)
+        use_old_input=True,
+    )
     return b
 
 
@@ -210,7 +213,7 @@ def elapsed_time(start_time):
     return datetime.datetime.now() - start_time
 
 
-def x(mode, df, control):
+def x(mode, df, predictors):
     '''return 2D np.array, with df x values possibly transformed to log
 
     RETURNS array: np.array 2D
@@ -230,25 +233,23 @@ def x(mode, df, control):
             raise RuntimeError('bad transformation: ' + str(transformation))
         raise RuntimeError('bad mode:' + str(mode))
 
-    array = np.empty(shape=(df.shape[0], len(control.predictors)),
+    array = np.empty(shape=(df.shape[0], len(predictors)),
                      dtype=np.float64).T
     # build up in transposed form
     index = 0
-    for predictor_name, transformation in control.predictors:
+    for predictor_name, transformation in predictors:
         v = transform(df[predictor_name].values, mode, transformation)
         array[index] = v
         index += 1
     return array.T
 
 
-def y(mode, df, control):
+def y(mode, df, price_column):
     '''return np.array 1D with transformed price column from df'''
     df2 = df.copy(deep=True)
     if mode == 'log':
-        df2[control.price_column] = \
-            pd.Series(np.log(df[control.price_column]),
-                      index=df.index)
-    array = np.array(df2[control.price_column].as_matrix(), np.float64)
+        df2[price_column] = pd.Series(np.log(df[price_column]), index=df.index)
+    array = np.array(df2[price_column].as_matrix(), np.float64)
     return array
 
 
@@ -615,7 +616,7 @@ class ReportRf(object):
         self.summarize_zip(sale_date, training_days, model_name, all_results, control)
 
 
-class Rf(object):
+class RfOLD(object):
     'Random forests via sklearn'
     def __init__(self):
         self.Model_Constructor = ensemble.RandomForestRegressor
@@ -664,7 +665,124 @@ class Rf(object):
         return all_variants
 
 
+class Rf(object):
+    'Random forests regressor via sklearn'
+    def __init__(self, n_estimates, max_depth, random_state, variants):
+        self.model = ensemble.RandomForestRegressor(n_estimates=n_estimates,
+                                                  max_depth=max_depth,
+                                                    random_state=random_state)
+
+    def fit(x_df, extract_x, y_df, extract_y, sample_weight):
+        self.fit(extract_x(x_df), extract_y(y_df), sample_weight)
+
+    def predict(x_df, extract_x):
+        return predict(extract_x(x_df))
+
+    def attributes():
+        return {'estimators_': self.model.estimators_,
+                'feature_importances_': self.model.feature_importances_,
+                'oob_score_': self.model.oob_score_,
+                'oob_prediction_': self.model.oob_precition_,
+                }
+
+    # OLD BELOW ME
+    def reporter(self):
+        return ReportRf
+
+    def run(self, df_train, df_test, df_next, control):
+        '''fit on train, test on test, return dict of variants
+
+        The variants are defined by the number of trees in the forest
+
+        RETURN dict with key = variant_description
+        '''
+        verbose = False
+
+        def variant(max_depth):  # class Rf
+            'per Andreas Mueller, regularize using max depth of each random tree'
+            train_x = x(None, df_train, control)  # no transformation
+            test_x = x(None, df_test, control)
+            train_y = y(None, df_train, control)
+            model = self.Model_Constructor(max_depth=max_depth,
+                                           n_estimators=control.rf_n_estimators,
+                                           random_state=control.random_seed)
+            fitted_model = model.fit(train_x, train_y)
+            estimates = fitted_model.predict(test_x)
+            # return selected fitted results
+            result = {
+                'feature_importances': fitted_model.feature_importances_,
+                'estimates': estimates,
+                'actuals': y('None', df_test, control),
+                'estimates_next': fitted_model.predict(x(None, df_next, control)),
+                'actuals_next': y('None', df_next, control),
+                'n_train': len(train_x),
+            }
+            if verbose:
+                for k, v in result.iteritems():
+                    print k, v
+            return result
+
+        all_variants = {}
+        for max_depth in control.rf_max_depths:
+            variant_value = variant(max_depth)
+            key = ('max_depth', max_depth)
+            all_variants[key] = variant_value
+        return all_variants
+
+
+class Rfnw(object):
+    'random forest without weighted training samples'
+    def __init__(self, n_estimators):
+        self.n_estimators = n_estimators
+
+    def fit_and_predict(self, hp, train_df, validate_df, lhs_name, rhs_names):
+        'fit one model and use it for all the predictions'
+        pdb.set_trace()
+        assert hp[0] == 'max_depth'
+        max_depth = hp[1]
+        m = Rf(max_depth=max_depth,
+               n_estimatores=self.n_estimators,
+               random_state=self.random_state)
+        m.fit(x(None, train_df, rhs_names), y(None, train_df, lhs_name))
+        estimates = m.predict(x(None, validate_df, rhs_names))
+        actuals = y(None, validate_df, lhs_name)
+        return {'estimates': estimates,
+                'actuals': actuals,
+                'hp': hp,
+                'attributes': m.attributes(),
+                }
+
+
 class Rfw(object):
+    'random forest with weighted training samples'
+    def __init__(self, make_weights, n_estimators, max_depth, random_state):
+        self.make_weights = make_weights
+
+    def fit_and_predict(self, hp, train_df, validate_df):
+        'fit one model for each prediction'
+        pdb.set_trace()
+        assert hp[0] == 'max_depth'
+        max_depth = hp[1]
+        results = []
+        pdb.set_trace()
+        for validate_row_df in validate_df.iterrows():
+            m.Rf(max_depth, self.control)
+            m.fit(x(None, train_df, self.control),
+                  y(None, train_df, self.control),
+                  make_weights(validate_row_df, train_df))
+            estimates = m.predict(x(None, validate_row_df, self.control))
+            actuals = y(None, validate_row_df, self.control)
+            result = {'estimates': estimates,
+                      'actuals': actuals,
+                      'hp': hp,
+                      'attributes': m.attributes(),
+                      }
+            results.append(result)
+        pdb.set_trace()
+        return results
+
+
+class RfwOLD(object):
     'Random forests via sklearn'
     def __init__(self):
         self.Model_Constructor = ensemble.RandomForestRegressor
@@ -731,22 +849,6 @@ class Rfw(object):
         return all_variants
 
 
-def make_weights_function_1(train_df, census_adjacencies):
-    'return function(df_row) -> vector of weights'
-    train = train_df.copy(deep=True)
-    adjacencies = census_adjacencies.copy()
-    if True:
-        print 'shape train df', train_df.shape
-        print 'len adjacencies', len(adjacencies)
-
-    def weights(df_row):
-        'return vector of weights relative to the training data'
-        r = np.ones(len(train))  # TODO: use the census tracts
-        return r
-
-    return weights
-
-
 class Rfw1(Rfw):
     'Random forests with samples weighted according to scheme 1'
     def __init__(self):
@@ -785,10 +887,14 @@ def within(sale_date, training_days, df):
     return ok_indices
 
 
-def is_between(df, first_date, last_date):
-    'return mask for df containing subset of samples between the two dates'
+def mask_in_date_range(df, date_range):
     df_date = df['sale.python_date']
-    return (df_date >= first_date) & (df_date <= last_date)
+    return (df_date >= date_range.first) & (df_date <= date_range.last)
+
+
+def samples_in_date_range(df, date_range):
+    'return new df'
+    return df[mask_in_date_range(df, date_range)]
 
 
 def on_sale_date(sale_date, df):
@@ -800,7 +906,6 @@ def on_sale_date(sale_date, df):
 
 def add_age(df, sale_date):
     'Return new df with extra columns for age and effective age'
-
     column_names = df.columns.tolist()
     if 'age' in column_names:
         print column_names
@@ -899,7 +1004,6 @@ def determine_most_popular_zip_code(df, control):
     print 'in 10: %d  not in 10: %d' % (count_in_10, count_not_in_10)
     print 'NOTE: all this analysis is before training samples are selected'
 
-    return most_common_zip_code
 
 
 def read_training_data(control):
@@ -991,112 +1095,137 @@ def squeeze(result, verbose=False):
     return new_result
 
 
+def make_weights(query, train_df, hpw, control):
+    'return numpy.array of weights for each sample'
+    if hpw == 1:
+        return np.ones(len(train_df))
+    else:
+        print 'bad hpw: %s' % hpw
+
+
+CvKey = collections.namedtuple('CvKey', 'model hp1 hp2 td fn')
+CvValue = collections.namedtuple('CvValue', 'actuals estimates attributes')
+
+
+def sweep_hp_lr(train_df, validate_df, control):
+    pdb.set_trace()
+    pass
+
+
+def sweep_hp_rf(train_df, validate_df, control):
+    'fit a model and validate a model for each hyperparameter'
+    def x_matrix(df):
+        augmented = add_age(df, control.arg.sale_date)
+        return x(None, augmented, control.predictors)
+
+    def y_vector(df):
+        return y(None, df, control.price_column)
+
+    verbose = True
+    RFR = ensemble.RandomForestRegressor
+    results = {}
+    train_x = x_matrix(train_df)
+    train_y = y_vector(train_df)
+    for hpd in control.arg.hpd:
+        for hpw in control.arg.hpw:
+            for validate_row_index in xrange(len(validate_df)):
+                if verbose:
+                    print 'sweep_hp_rf hpd %d hpw %d validate_row_index %d of %d' % (
+                        hpd, hpw, validate_row_index, len(validate_df))
+                validate_row = validate_df[validate_row_index: validate_row_index + 1]
+                model = RFR(n_estimators=control.n_rf_estimators,  # number of trees
+                            random_state=control.random_seed,
+                            max_depth=hpd)
+                weights = make_weights(validate_row, train_df, hpw, control)
+                model.fit(train_x, train_y, weights)
+                estimate = model.predict(x_matrix(validate_row))[0]
+                actual = y_vector(validate_row)[0]
+                # Don't keep some attributes
+                #  oob attributes are not produced because we didn't ask for them
+                #  estimators_ contains a fitted model for each estimate
+                attributes = {
+                    'feature_importances_': model.feature_importances_,
+                }
+                results[('max_depth', hpd), ('weight_scheme_index', hpw)] = {
+                    'estimate': estimate,
+                    'actual': actual,
+                    'attributes': attributes,
+                }
+    return results
+
+
+def cross_validate(df, control):
+    'produce estimated generalization errors'
+    verbose = True
+    results = {}
+    fold_number = -1
+    sale_dates_mask = mask_in_date_range(df, control.sale_date_range)
+    skf = cross_validation.StratifiedKFold(sale_dates_mask, control.n_folds)
+    for train_indices, validate_indices in skf:
+        fold_number += 1
+        fold_train_all = df.iloc[train_indices].copy(deep=True)
+        fold_validate_all = df.iloc[validate_indices].copy(deep=True)
+        for td in control.arg.td:
+            if verbose:
+                print 'cross_validate fold %d of %d training_days %d' % (
+                    fold_number, control.n_folds, td)
+            fold_train = samples_in_date_range(
+                fold_train_all,
+                DateRange(first=control.arg.sale_date - datetime.timedelta(td),
+                          last=control.arg.sale_date - datetime.timedelta(1))
+            )
+            fold_validate = samples_in_date_range(
+                fold_validate_all,
+                control.sale_date_range
+            )
+            if control.arg.model == 'lr':
+                d = sweep_hp_lr(fold_train, fold_validate, control)
+            elif control.arg.model == 'rf':
+                d = sweep_hp_rf(fold_train, fold_validate, control)
+                # d = cross_validate_rf(fold_train, fold_validate, control)
+            else:
+                print 'bad model: %s' % control.model
+                pdb.set_trace()
+            results[(('fn', fold_number), ('td', td))] = d
+    return results
+
+
+def predict_next(df, control):
+    'fit each model and predict transaction in next period'
+    verbose = True
+    for td in control.arg.td:
+        if verbose:
+            print 'predict_next training_days %d' % td
+        last_sale_date = control.sale_date_range.last
+        train_df = samples_in_date_range(
+            df,
+            DateRange(first=last_sale_date - datetime.timedelta(td),
+                      last=last_sale_date)
+        )
+        next_days = 30 if control.arg.month else 7
+        test_df = samples_in_date_range(
+            df,
+            DateRange(first=last_sale_date,
+                      last=last_sale_date + datetime.timedelta(next_days))
+        )
+        if control.arg.model == 'lr':
+            return sweep_hp_lr(train_df, test_df, control)
+        elif control.arg.model == 'rf':
+            return sweep_hp_rf(train_df, test_df, control)
+        else:
+            print 'bad model: %s' % control.arg.model
+
+
 def fit_and_test_models(df_all, control):
     'Return all_results dict'
-    verbose = False
+    # throw away irrelevant transactions
+    df_relevant = samples_in_date_range(df_all, control.relevant_date_range)
 
-    # determine samples that are in the test period ( = 1 week around the sale_date)
+    results_cv = cross_validate(df_relevant, control)
+    results_next = predict_next(df_relevant, control)
+
     pdb.set_trace()
-    first_sale_date = control.sale_date - datetime.timedelta(3)
-    last_sale_date = control.sale_date + datetime.timedelta(3)
-    in_sale_period = is_between(df=df_all,
-                                first_date=first_sale_date,
-                                last_date=last_sale_date)
-    num_in_sale_period = sum(in_sale_period)
-    print 'sale period is %s to %s with %d samples' % (first_sale_date, last_sale_date, num_in_sale_period)
-    assert num_in_sale_period > 0, 'unable to form folds'
-
-    # test data is the next period after the last training sample
-    first_next_date = last_sale_date + datetime.timedelta(1)
-    last_next_date = last_sale_date + datetime.timedelta(control.testing_days)
-    in_next_period = is_between(df=df_all,
-                                first_date=first_next_date,
-                                last_date=last_next_date)
-    print 'next period is %s to %s with %d samples' % (first_next_date, last_next_date, sum(in_next_period))
-    df_next = add_age(df_all[in_next_period], control.sale_date + datetime.timedeal(control.testing_days))
-
-    all_results = {}
-    fold_number = -1
-    skf = cross_validation.StratifiedKFold(in_sale_period, control.n_folds)
-    for train_indices, test_indices in skf:
-        fold_number += 1
-        # don't create views (just to be careful)
-        df_train = df_all.iloc[train_indices].copy(deep=True)
-        df_test = df_all.iloc[test_indices].copy(deep=True)
-        for training_days in control.training_days:
-            assert training_days > 0
-            # determine training samples for the models
-            df_train_model = \
-                add_age(df_train[is_between(df=df_train,
-                                            first_date=first_sale_date - datetime.timedelta(training_days),
-                                            last_date=first_sale_date - datetime.timedelta(1))],
-                        first_sale_date)
-            if len(df_train_model) == 0:
-                print 'no training data fold %d training_days %d' % (
-                    fold_number, training_days)
-                sys.exit(1)
-
-            # determine testing samples for the models
-            df_test_model = \
-                add_age(df_test[is_between(df=df_test,
-                                           first_date=first_sale_date,
-                                           last_date=last_sale_date)],
-                        first_sale_date)
-            if len(df_test_model) == 0:
-                print 'no testing data fold %d sale_date %s training_days %d' % (
-                    fold_number, control.sale_date, training_days)
-                continue
-
-            print 'model samples sizes: training_days %d train %d test %d' % (
-                training_days, len(df_train_model), len(df_test_model))
-
-            # fit and test each model
-            for model_name, model in control.models.iteritems():
-                print '%d %s %d %s elapsed %s' % (
-                    fold_number, control.sale_date, training_days, model_name,
-                    elapsed_time(control.start_time))
-
-                def make_key(scope):
-                    return (fold_number, control.sale_date, training_days, model_name, scope)
-
-                # determine global results (for all areas)
-                if len(df_test_model) == 0 or len(df_train_model) == 0:
-                    print 'skipping global zero length: #test %d #train %d' % (
-                        len(df_test_model), len(df_train_model))
-                    continue
-
-                if 'global' in control.scopes:
-                    global_result = model.run(df_train=df_train_model,
-                                              df_test=df_test_model,
-                                              df_next=df_next,
-                                              control=control)
-                    global_key = make_key(scope='global')
-                    all_results[global_key] = squeeze(global_result)
-                    if verbose:
-                        report = model.reporter()()  # instantiate report class
-                        for line in report.global_fold_lines(global_key, global_result):
-                            print line
-
-                # determine results for each zip code in test data
-                if 'zip' in control.scopes:
-                    for zip_code in unique_zip_codes(df_test_model):
-                        df_train_model_zip = zip_codes(df_train_model, zip_code)
-                        df_test_model_zip = zip_codes(df_test_model, zip_code)
-                        if len(df_train_model_zip) == 0 or len(df_test_model_zip) == 0:
-                            print 'skipping zip zero length: zip %d #test %d #train %d' % (
-                                zip_code, len(df_test_model_zip), len(df_train_model_zip))
-                        else:
-                            zip_code_result = model.run(df_train=df_train_model_zip,
-                                                        df_test=df_test_model_zip,
-                                                        df_next=df_next,
-                                                        control=control)
-                            zip_code_key = make_key(scope=('zip', zip_code))
-                            all_results[zip_code_key] = squeeze(zip_code_result)
-                            if verbose:
-                                for line in report.zip_fold_lines(zip_code_key, zip_code_result):
-                                    print line
-    print 'num sale samples across all folds:', num_sale_samples
-    return all_results
+    return results_cv, results_next
 
 
 def print_results(all_results, control):
@@ -1151,17 +1280,27 @@ def main(argv):
         most_popular_zip_code = determine_most_popular_zip_code(df_loaded.copy(), control)
         print most_popular_zip_code
 
-    all_results = fit_and_test_models(df_loaded, control)
+    results_cv, results_next = fit_and_test_models(df_loaded, control)
     assert(df_loaded.equals(df_loaded_copy))
 
-    if False:
-        # this code doesn't know about the variants for the Rf model
-        # in addition, we don't need these results, because downstream programs have
-        # been written to summarize the results
-        print_results(all_results, control)
+    # write results
+    def file_name(key):
+        'model-foldNumber-trainingDays'
+        assert len(key) == 2, key
+        s = '%s-%s-%s' % (control.arg.model, key[0], key[1])
+        return s
 
-    # write result
-    write_all_results(all_results, control)
+    def write(dir_prefix, results):
+        for k, v in results.iteritems():
+            directory = control.dir_out + dir_prefix
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+            f = open(directory + file_name(k), 'wb')
+            pickle.dump((k, v), f)
+            f.close()
+
+    write('cv/', results_cv)
+    write('next/', results_next)
 
     print 'ok'
 
