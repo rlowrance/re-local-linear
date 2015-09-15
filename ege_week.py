@@ -32,9 +32,9 @@ import parse_command_line
 def usage(msg=None):
     if msg is not None:
         print 'invocation error: ' + str(msg)
-    print 'usage: python ege_week.py YYYY-MM-DD [--test] [--global]'
+    print 'usage: python ege_week.py YYYY-MM-DD <other options>'
     print ' YYYY-MM-DD       mid-point of week; analyze -3 to +3 days'
-    print ' [--month]        test on next month, not next week'
+    print ' --month          optional; test on next month, not next week'
     print ' --model {lr|rf}  which model to run'
     print ' --td <range>     training_days'
     print ' --hpd <range>    required iff model is rf; max_depths to model'
@@ -43,7 +43,7 @@ def usage(msg=None):
     print ' --hpy <form>     required iff mode is lr; transformation to y'
     print ' --test           optional; if present, program runs in test mode'
     print 'where'
-    print ' <form>  is {|log}+ saying whether the variable is in natural or log units'
+    print ' <form>  is {lin|log}+ saying whether the variable is in natural or log units'
     print ' <range> is start [stop [step]], just like Python\'s range(start,stop,step)'
     sys.exit(1)
 
@@ -150,8 +150,8 @@ def make_control(argv):
         base_name=argv[0].split('.')[0],
         hpd=pcl.get_range('--hpd') if pcl.has_arg('--hpd') else None,
         hpw=pcl.get_range('--hpw') if pcl.has_arg('--hpw') else None,
-        hpx=pcl.get_range('--hpx') if pcl.has_arg('--hpx') else None,
-        hpy=pcl.get_range('--hpy') if pcl.has_arg('--hpy') else None,
+        hpx=pcl.get_arg('--hpx') if pcl.has_arg('--hpx') else None,
+        hpy=pcl.get_arg('--hpy') if pcl.has_arg('--hpy') else None,
         model=pcl.get_arg('--model'),
         month=pcl.has_arg('--month'),
         sale_date=make_sale_date(argv[1]),
@@ -160,6 +160,12 @@ def make_control(argv):
     )
     print 'arg'
     print arg
+    # check for missing options
+    if arg.model is None:
+        usage('missing --model')
+    if arg.td is None:
+        usage('missing --td')
+
     # validate combinations of invocation options
     if arg.model == 'lr':
         if arg.hpx is None or arg.hpy is None:
@@ -221,7 +227,7 @@ def x(mode, df, predictors):
     def transform(v, mode, transformation):
         if mode is None:
             return v
-        if mode == 'linear':
+        if mode == 'linear' or mode == 'lin':
             return v
         if mode == 'log':
             if transformation is None:
@@ -1108,8 +1114,40 @@ CvValue = collections.namedtuple('CvValue', 'actuals estimates attributes')
 
 
 def sweep_hp_lr(train_df, validate_df, control):
-    pdb.set_trace()
-    pass
+    'sweep hyperparameters, fitting and predicting for each combination'
+    def x_matrix(df, transform):
+        augmented = add_age(df, control.arg.sale_date)
+        return x(transform, augmented, control.predictors)
+
+    def y_vector(df, transform):
+        return y(transform, df, control.price_column)
+
+    verbose = True
+    LR = linear_model.LinearRegression
+    results = {}
+    for hpx in control.arg.hpx:
+        for hpy in control.arg.hpy:
+            if verbose:
+                print 'sweep_hr_lr hpx %s hpy %s' % (hpx, hpy)
+            model = LR(fit_intercept=True,
+                       normalize=True,
+                       copy_X=False,
+                       )
+            train_x = x_matrix(train_df, hpx)
+            train_y = y_vector(train_df, hpy)
+            model.fit(train_x, train_y)
+            estimates = model.predict(x_matrix(validate_df, hpx))
+            actuals = y_vector(validate_df, hpy)
+            attributes = {
+                'coef_': model.coef_,
+                'intercept_': model.intercept_
+            }
+            results[('y_transform', hpy), ('x_transform', hpx)] = {
+                'estimate': estimates,
+                'actual': actuals,
+                'attributes': attributes
+            }
+    return results
 
 
 def sweep_hp_rf(train_df, validate_df, control):
@@ -1123,9 +1161,9 @@ def sweep_hp_rf(train_df, validate_df, control):
 
     verbose = True
     RFR = ensemble.RandomForestRegressor
-    results = {}
     train_x = x_matrix(train_df)
     train_y = y_vector(train_df)
+    results = {}
     for hpd in control.arg.hpd:
         for hpw in control.arg.hpw:
             for validate_row_index in xrange(len(validate_df)):
