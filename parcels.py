@@ -1,4 +1,4 @@
-'hold all the knowledge about the layout of the CoreLogic parcels file'
+hold'hold all the knowledge about the layout of the CoreLogic parcels file'
 # called record type 2580 in the Corelogic documentation
 
 
