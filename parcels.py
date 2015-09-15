@@ -92,7 +92,7 @@ def mask_school(df):
     return r1 | r2 | r3 | r4 | r5 | r6
 
 
-def read(dir_input, nrows):
+def read_sfr(dir_input, nrows):
     'return df containing all parcels (not just single family residences)'
     def read_parcels(dir, file_name):
         'return subset kept (which is all), length of read df'
@@ -104,7 +104,9 @@ def read(dir_input, nrows):
                 df = pd.read_csv(f, sep='\t', nrows=nrows)
             except:
                 print 'exception', sys.exc_info()[0]
-            return df, len(df)
+            mask_keep = mask_sfr(df)
+            keep = df[mask_keep]
+            return keep, len(keep)
 
     print 'reading parcels'
     dir_parcels = dir_input + 'corelogic-taxrolls-090402_05/'
