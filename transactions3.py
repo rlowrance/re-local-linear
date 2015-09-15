@@ -73,7 +73,7 @@ def make_control(argv):
         cache=cache,
         just=parse_command_line.default(argv, '--just', None),
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
-        path_out_transactions=directory('working') + base_name + '.csv',
+        path_out_transactions=directory('working') + base_name + '-al-g-sfr.csv',
         dir_deeds_a=directory('input') + 'corelogic-deeds-090402_07/',
         dir_deeds_b=directory('input') + 'corelogic-deeds-090402_09/',
         dir_parcels=directory('input') + 'corelogic-taxrolls-090402_05/',
