@@ -1,5 +1,10 @@
+import datetime
 import sys
 import pdb
+
+
+from directory import directory
+
 
 if False:
     pdb.set_trace()  # avoid warning message from pyflakes
@@ -8,11 +13,13 @@ if False:
 class Logger(object):
     # from stack overflow: how do i duplicat sys stdout to a log file in python
 
-    def __init__(self, logfile_path, logfile_mode='w'):
+    def __init__(self, logfile_path=None, logfile_mode='w', base_name=None):
+        def path(s):
+            return directory('log') + s + datetime.datetime.now().isoformat('T') + '.log'
         self.terminal = sys.stdout
-        clean_path = logfile_path.replace(':', '-')
+        pdb.set_trace()
+        clean_path = logfile_path.replace(':', '-') if base_name is None else path(base_name)
         self.log = open(clean_path, logfile_mode)
-        pass
 
     def write(self, message):
         self.terminal.write(message)
