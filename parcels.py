@@ -92,10 +92,15 @@ def mask_school(df):
     return r1 | r2 | r3 | r4 | r5 | r6
 
 
-def read_sfr(dir_input, nrows):
+def read_driver(dir_input, nrows, just_sfr):
     'return df containing all parcels (not just single family residences)'
     def read_parcels(dir, file_name):
         'return subset kept (which is all), length of read df'
+
+        def make_sfr(df):
+            keep = df[mask_sfr(df)]
+            return keep, len(keep)
+
         z = zipfile.ZipFile(dir + file_name)
         assert len(z.namelist()) == 1
         for archive_member_name in z.namelist():
@@ -104,9 +109,7 @@ def read_sfr(dir_input, nrows):
                 df = pd.read_csv(f, sep='\t', nrows=nrows)
             except:
                 print 'exception', sys.exc_info()[0]
-            mask_keep = mask_sfr(df)
-            keep = df[mask_keep]
-            return keep, len(keep)
+            return make_sfr(df) if just_sfr else df, len(df)
 
     print 'reading parcels'
     dir_parcels = dir_input + 'corelogic-taxrolls-090402_05/'
@@ -122,6 +125,14 @@ def read_sfr(dir_input, nrows):
     lsum = l1 + l2 + l3 + l4 + l5 + l6 + l7 + l8
     print 'read %d parcels, kept %d, discarded %d' % (lsum, len(df), lsum - len(df))
     return df
+
+
+def read(dir_input, nrows):
+    return read_driver(just_sfr=False, dir_input=dir_input, nrows=nrows)
+
+
+def read_sfr(dir_input, nrows):
+    return read_driver(just_sfr=True, dir_input=dir_input, nrows=nrows)
 
 
 if __name__ == '__main__':
