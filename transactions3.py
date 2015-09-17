@@ -17,7 +17,6 @@ NOTES:
 '''
 
 import collections
-import csv
 import datetime
 import numpy as np
 import pandas as pd
@@ -25,10 +24,8 @@ import cPickle as pickle
 import pdb
 from pprint import pprint
 import random
-from sklearn import cross_validation
 import sys
 import time
-import zipfile
 
 
 from Bunch import Bunch
@@ -72,6 +69,8 @@ def make_control(argv):
         test=test,
         cache=cache,
         just=parse_command_line.default(argv, '--just', None),
+        path_in_census=directory('input') + 'neighborhood-data/census.csv',
+        path_in_geocoding=directory('input') + 'geocoding.tsv',
         path_log=directory('log') + base_name + '.' + now.isoformat('T') + '.log',
         path_out_transactions=directory('working') + base_name + '-al-g-sfr.csv',
         dir_deeds_a=directory('input') + 'corelogic-deeds-090402_07/',
@@ -106,65 +105,78 @@ def best_apn(df, feature_formatted, feature_unformatted):
     pdb.set_trace()
 
 
+def read_census(control):
+    'return dataframe'
+    print 'reading census'
+    df = pd.read_csv(control.path_in_census, sep='\t')
+    return df
 
 
-def make_subset(all_samples, control):
-    def names(s):
-        for name in all_samples.columns:
-            if s in name:
-                print name
+def read_geocoding(control):
+    'return dataframe'
+    print 'reading geocoding'
+    df = pd.read_csv(control.path_in_geocoding, sep='\t')
+    return df
 
-    def below(percentile, series):
-        quantile_value = series.quantile(percentile / 100.0)
-        r = series < quantile_value
+
+def parcels_derived_features(parcels_df):
+    'mutate parcels_df by addinging indicator columns for tract and zip code features'
+    def truncate_zipcode(zip):
+        'convert possible zip9 to zip5'
+        x = zip / 10000.0 if zip > 99999 else zip
+        return int(x if not np.isnan(x) else 0)
+
+    def make_tracts(mask_function):
+        'return set of tracts containing the specified feature'
+        mask = mask_function(parcels_df)
+        subset = parcels_df[mask]
+        r = set(int(item)
+                for item in subset[parcels.census_tract]
+                if not np.isnan(item))
         return r
 
-    a = all_samples
-    # set mask value in m to True to keep the observation
-    m = {}
-    m['one building'] = a[parcels.n_buildings] == 1
-    m['one APN'] = a[deeds.has_multiple_apns + '_deed'].isnull()  # NaN => not a multiple APN
-    m['assessment total > 0'] = a[parcels.assessment_total] > 0
-    m['assessment land > 0'] = a[parcels.assessment_land] > 0
-    m['assessment improvement > 0'] = a[parcels.assessment_improvement] > 0
-    m['assessment total < max'] = a[parcels.assessment_total] < control.max_sale_price
-    m['effective_year_built > 0'] = a[parcels.effective_year_built] > 0
-    m['year_built > 0'] = a[parcels.year_built] > 0
-    m['effective year >= year built'] = a[parcels.effective_year_built] >= a[parcels.year_built]
-    m['latitude known'] = a['G LATITUDE'] != 0
-    m['longitude known'] = a['G LONGITUDE'] != 0
-    m['land size'] = below(99, a[parcels.land_size])
-    m['living size'] = below(99, a[parcels.living_size])
-    m['recording date present'] = ~a[deeds.recording_date + '_deed'].isnull()  # ~ => not
-    m['price > 0'] = a[deeds.price + '_deed'] > 0
-    m['price < max'] = a[deeds.price + '_deed'] < control.max_sale_price
-    m['full price'] = deeds.mask_full_price(a, deeds.sale_code + '_deed')
-    m['rooms > 0'] = a[parcels.n_rooms] > 0
-    m['new or resale'] = deeds.mask_new_construction(a) | deeds.mask_resale(a)
-    m['units == 1'] = a[parcels.n_units] == 1
+    def make_zips(mask_function):
+        'return set of tracts containing the specified feature'
+        mask = mask_function(parcels_df)
+        subset = parcels_df[mask]
+        r = set(truncate_zipcode(item)
+                for item in subset[parcels.zipcode]
+                if not np.isnan(item))
+        return r
 
-    print 'effect of conditions individually'
-    for k, v in m.iteritems():
-        removed = len(a) - sum(v)
-        print '%30s removed %6d samples (%3d%%)' % (k, removed, 100.0 * removed / len(a))
+    # add columns for censu tract indicators
+    tracts = {
+        'has_commercial': make_tracts(parcels.mask_commercial),
+        'has_industry': make_tracts(parcels.mask_industry),
+        'has_park': make_tracts(parcels.mask_park),
+        'has_retail': make_tracts(parcels.mask_retail),
+        'has_school': make_tracts(parcels.mask_school),
+    }
+    for k, tract_set in tracts.iteritems():
+        for tract in tract_set:
+            parcels_df['tract ' + k] = parcels_df[parcels.census_tract] == tract
 
-    mm = reduce(lambda a, b: a & b, m.values())
-    total_removed = len(a) - sum(mm)
-    print 'in combination, removed %6d samples (%3d%%)' % (total_removed, 100.0 * total_removed / len(a))
+    # add columns for zip code indicators
+    zips = {
+        'has_commercial': make_zips(parcels.mask_commercial),
+        'has_industry': make_zips(parcels.mask_industry),
+        'has_park': make_zips(parcels.mask_park),
+        'has_retail': make_zips(parcels.mask_retail),
+        'has_school': make_zips(parcels.mask_school),
+    }
+    truncated_zipcodes = parcels_df[parcels.zipcode].apply(truncate_zipcode)
+    for k, zip_set in zips.iteritems():
+        for zip5 in zip_set:
+            parcels_df['zip ' + k] = truncated_zipcodes == zip5
 
-    r = a[mm]
-    return r
+    # report on geographic features
+    for geo in ('tract', 'zip'):
+        for feature in ('has_commercial', 'has_industry', 'has_park', 'has_retail', 'has_school'):
+            print 'location kind %6s %15s count: %7d' % (
+                geo, feature, sum(parcels_df[geo + ' ' + feature])
+            )
 
-
-def just_derived(control):
-    pdb.set_trace()
-    start = time.time()
-    df = pd.read_csv(control.path_cache_parcels,
-                     nrows=1000 if control.test else None)
-    print 'read parcels; time: ', time.time() - start
-    print 'parcels shape:', df.shape
-    r = parcels_derived_features(df)
-    return r
+    return
 
 
 def just_timing(control):
@@ -180,7 +192,7 @@ def just_timing(control):
     '''
     if False:
         start = time.time()
-        parcels = parcels.read(directory('input'), control.test)
+        parcels.read(directory('input'), control.test)
         print 'read parcels:', time.time() - start
 
     path_csv = '/tmp/parcels.csv'
@@ -223,8 +235,14 @@ def read_and_write(read_function, write_path, control):
     print 'secs to write:', time.time() - start
 
 
+CensusFeatures = collections.namedtuple('CensusFeatures', (
+    'avg_commute', 'median_hh_income', 'fraction_owner_occupied',
+)
+)
+
+
 def reduce_census(census_df):
-    'return dictionary: key=census_trace, value=(avg commute, median hh income, fraction owner occupied)'
+    'return dictionary[census_tract] --> CensusFeatures'
 
     def get_census_tract(row):
         fips_census_tract = float(row[census.fips_census_tract])
@@ -232,6 +250,7 @@ def reduce_census(census_df):
         return census_tract
 
     def get_avg_commute(row):
+        'return weighted average commute time'
         def mul(factor):
             return (factor[0] * float(row[census.commute_less_5]) +
                     factor[1] * float(row[census.commute_5_to_9]) +
@@ -245,9 +264,9 @@ def reduce_census(census_df):
                     factor[9] * float(row[census.commute_45_to_59]) +
                     factor[10] * float(row[census.commute_60_to_89]) +
                     factor[11] * float(row[census.commute_90_or_more]))
-        n = mul((1., ) * 12)
+        n_samples = mul((1., ) * 12)
         wsum = mul((2.5, 7.5, 12.5, 17.5, 22.5, 27.5, 32.5, 37.5, 42.5, 52.5, 75.0, 120.0))
-        return None if n == 0 else wsum / n
+        return None if n_samples == 0 else wsum / n_samples
 
     def get_median_household_income(row):
         mhi = float(row[census.median_household_income])
@@ -259,7 +278,7 @@ def reduce_census(census_df):
         return None if total == 0 else owner / total
 
     d = {}
-    # first row has explanationss for column names
+    # first row has explanations for column names
     labels = census_df.loc[0]
     if False:
         print 'labels'
@@ -268,7 +287,7 @@ def reduce_census(census_df):
     for row_index in xrange(1, len(census_df)):
         if False:
             print row_index
-        row = census_df.loc[row_index]
+        row = census_df.loc[row_index]  # row is a pd.Series
         if False:
             print row
         ct = get_census_tract(row)
@@ -279,7 +298,10 @@ def reduce_census(census_df):
         mhi = get_median_household_income(row)
         foo = get_fraction_owner_occupied(row)
         if ac is not None and mhi is not None and foo is not None:
-            d[ct] = (ac, mhi, foo)
+            d[ct] = CensusFeatures(avg_commute=ac,
+                                   median_hh_income=mhi,
+                                   fraction_owner_occupied=foo,
+                                   )
     return d
 
 
@@ -309,30 +331,18 @@ def just_parcels(control):
     read_and_write(parcels.read, control.path_cache_base + 'parcels.csv', control)
 
 
-def just_subset(control):
-    print 'subset'
-    all_samples = pd.read_csv(control.path_all_samples,
-                              nrows=10000 if control.test else None)
-    subset = make_subset(all_samples, control)
-    print 'subset shape', subset.shape
-
-
 def main(argv):
     control = make_control(argv)
     sys.stdout = Logger(control.path_log)
     print control
 
     if control.just:
-        if control.just == 'derived':
-            just_derived(control)
-        elif control.just == 'timing':
+        if control.just == 'timing':
             just_timing(control)
         elif control.just == 'cache':
             just_cache(control)
         elif control.just == 'parcels':
             just_parcels(control)
-        elif control.just == 'subset':
-            just_subset(control)
         else:
             assert False, control.just
         pdb.set_trace()
@@ -342,10 +352,12 @@ def main(argv):
     # create dataframes
     deeds_g_al_df = deeds.read_g_al(directory('input'),
                                     10000 if control.test else None)
-    parcels_sfr_df = parcels.read_sfr(directory('input'),
-                                      10000 if control.test else None)
+    parcels_df = parcels.read(directory('input'),
+                              10000 if control.test else None)
+    parcels_sfr_df = parcels_df[parcels.mask_sfr(parcels_df)]
 
-    print 'led deeds g al', len(deeds_g_al_df)
+    print 'len deeds g al', len(deeds_g_al_df)
+    print 'len parcels', len(parcels_df)
     print 'len parcels sfr', len(parcels_sfr_df)
 
     # augment parcels and deeds to include a better APN
@@ -379,7 +391,34 @@ def main(argv):
     print ' output sizes'
     ps('dp', dp)
 
-    dp.to_csv(control.path_out_transactions)
+    # add in derived parcels features
+    parcels_derived_features(parcels_df)  # mutate parcels_df
+
+    # add in census data
+    census_df = make_census_reduced_df(reduce_census(read_census(control)))
+    dpc = dp.merge(census_df,
+                   left_on=parcels.census_tract + '_parcel',
+                   right_on="census_tract",
+                   )
+    print 'len dpc', len(dpc)
+
+    # add in GPS coordinates
+    geocoding_df = read_geocoding(control)
+    dpcg = dpc.merge(geocoding_df,
+                     left_on="best_apn",
+                     right_on="G APN",
+                     )
+    print 'dpcg shape', dpcg.shape
+
+    final = dpcg
+    print 'final columns'
+    for c in final.columns:
+        print c
+
+    print 'final shape', final.shape
+
+    # write merged,augmented dataframe
+    final.to_csv(control.path_out_transactions)
 
     print control
     if control.test:

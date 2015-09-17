@@ -43,6 +43,7 @@ ALL += $(WORKING)/transactions-subset2-test.pickle
 ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled-test.pickle
+ALL += $(WORKING)/transactions3-al-g-sfr.csv
 #ALL += $(WORKING)/transactions-subset2-rescaled-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
@@ -286,6 +287,9 @@ $(ts2prefix)-rescaled.pickle: rescale.py $(ts2prefix).pickle
 	python rescale.py \
 		--in $(ts2prefix).pickle \
 		--out $(ts2prefix)-rescaled.pickle
+
+$(WORKING)/transactions3-al-g-sfr.csv: transactions3.py
+	$(PYTHON) transactions3.py
 
 ts2rescaledprefix = $(WORKING)/transactions-subset2-rescaled
 #$info ts2rescaledprefix $(ts2rescaledprefix))
