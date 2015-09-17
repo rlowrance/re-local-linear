@@ -17,7 +17,6 @@ class Logger(object):
         def path(s):
             return directory('log') + s + datetime.datetime.now().isoformat('T') + '.log'
         self.terminal = sys.stdout
-        pdb.set_trace()
         clean_path = logfile_path.replace(':', '-') if base_name is None else path(base_name)
         self.log = open(clean_path, logfile_mode)
 
