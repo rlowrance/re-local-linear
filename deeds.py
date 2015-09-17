@@ -15,10 +15,9 @@ def is_deeds(df):
 
 # map feature names to columns names
 
-# map feature names to columns names
-
 apn_formatted = 'APN FORMATTED'
 apn_unformatted = 'APN UNFORMATTED'
+census_tract = 'CENSUS TRACT'
 document_type = 'DOCUMENT TYPE CODE'
 has_multiple_apns = 'MULTI APN FLAG CODE'
 price = 'SALE AMOUNT'
