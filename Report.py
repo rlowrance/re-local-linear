@@ -1,5 +1,7 @@
 'Report writer'
 
+import pdb
+
 
 class Report(object):
     def __init__(self):
@@ -16,7 +18,12 @@ class Report(object):
     def write(self, path):
         f = open(path, 'w')
         for line in self.lines:
-            f.write(line)
+            try:
+                f.write(str(line))
+            except:
+                print line
+                print type(line)
+                pdb.set_trace()
             f.write('\n')
         f.close()
 
