@@ -113,18 +113,30 @@ def reasonable_feature_values(all_samples, control):
 
 
 def add_fields(df, control):
-    'add useful fields to df'
-    def ymd(date):
-        'yyyymmdd --> date(year, month, day)'
+    'mutate df'
+    def split(date):
         year = int(date / 10000)
         md = date - year * 10000
         month = int(md / 100)
         day = md - month * 100
+        return year, month, day
+
+    def python_date(date):
+        'yyyymmdd --> datetime.date(year, month, day)'
+        year, month, day = split(date)
         return datetime.date(int(year), int(month), int(day))
 
+    def yyyymm(date):
+        year, month, day = split(date)
+        return year * 100 + month
+
     value = df[layout.sale_date]
-    sale_date_python = value.apply(ymd)
+
+    sale_date_python = value.apply(python_date)
     df[layout.sale_date_python] = pd.Series(sale_date_python)
+
+    yyyymm = value.apply(yyyymm)
+    df[layout.yyyymm] = pd.Series(yyyymm)
 
 
 def main(argv):
@@ -133,7 +145,7 @@ def main(argv):
     print control
 
     transactions = pd.read_csv(control.path_in,
-                               nrows=10000 if control.arg.test else None,
+                               nrows=100000 if control.arg.test else None,
                                )
     print 'transactions column names'
     for c in transactions.columns:
@@ -149,17 +161,37 @@ def main(argv):
     add_fields(subset, control)
 
     # split into test and train
-    rs = cross_validation.ShuffleSplit(len(subset),
-                                       n_iter=1,
-                                       test_size=control.fraction_test,
-                                       train_size=None,
-                                       random_state=control.random_seed)
+    # stratify by yyyymm (month of sale)
+
+    def count_yyyymm(df, yyyymm):
+        return sum(df[layout.yyyymm] == yyyymm)
+
+    rs = cross_validation.StratifiedShuffleSplit(y=subset[layout.yyyymm],
+                                                 n_iter=1,
+                                                 test_size=control.fraction_test,
+                                                 train_size=None,
+                                                 random_state=control.random_seed)
     assert len(rs) == 1
     for train_index, test_index in rs:
         print 'len train', len(train_index), 'len test', len(test_index)
         assert len(train_index) > len(test_index)
         train = subset.iloc[train_index]
         test = subset.iloc[test_index]
+
+    # count samples in each strata
+    yyyymms = sorted(set(subset[layout.yyyymm]))
+    format = '%6d # total %6d # test %6d # train %6d'
+    for yyyymm in yyyymms:
+        c1 = count_yyyymm(subset, yyyymm)
+        c2 = count_yyyymm(test, yyyymm)
+        c3 = count_yyyymm(train, yyyymm)
+        print format % (yyyymm, c1, c2, c2)
+        if c1 != c2 + c3:
+            print 'not exactly split'
+            pdb.set_trace()
+    print 'totals'
+    print format % (0, len(subset), len(test), len(train))
+
     train.to_csv(control.path_out_train)
     test.to_csv(control.path_out_test)
 

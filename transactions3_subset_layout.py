@@ -34,6 +34,7 @@ zoning = 'ZONING'
 
 # fields created in transactions3-subset.py
 sale_date_python = 'sale_date_python'
+yyyymm = 'yyyymm'
 
 
 # masks for selecting fields with certain coded values
