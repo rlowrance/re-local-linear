@@ -44,6 +44,8 @@ ALL += $(WORKING)/transactions-subset2-train.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled.pickle
 ALL += $(WORKING)/transactions-subset2-rescaled-test.pickle
 ALL += $(WORKING)/transactions3-al-g-sfr.csv
+ALL += $(WORKING)/transactions3-subset-test.csv
+ALL += $(WORKING)/transactions3-subset-train.csv
 #ALL += $(WORKING)/transactions-subset2-rescaled-train.pickle
 ALL += $(WORKING)/chart-01.pdf
 ALL += $(WORKING)/chart-02-ols-2003on-ct-t-mean-mean.txt
@@ -75,6 +77,13 @@ all: $(ALL)
 include $(WORKING)/python-dependencies.makefile
 
 $(WORKING)/python-dependencies.makefile: python-dependencies.py
+
+$(WORKING)/transactions3-al-g-sfr.csv: transactions3.py
+	$(PYTHON) transactions3.py
+
+$(WORKING)/transactions3-subset-test%csv $(WORKING)/transactions3-subset-train%csv: \
+	transactions3-subset.py
+	$(PYTHON) transactions3-subset.py
 
 # ege_week files; STEM is .
 
@@ -287,9 +296,6 @@ $(ts2prefix)-rescaled.pickle: rescale.py $(ts2prefix).pickle
 	python rescale.py \
 		--in $(ts2prefix).pickle \
 		--out $(ts2prefix)-rescaled.pickle
-
-$(WORKING)/transactions3-al-g-sfr.csv: transactions3.py
-	$(PYTHON) transactions3.py
 
 ts2rescaledprefix = $(WORKING)/transactions-subset2-rescaled
 #$info ts2rescaledprefix $(ts2rescaledprefix))
